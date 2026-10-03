@@ -33,12 +33,15 @@ drafts. VLM camera alerts are for government only and never reach citizens.
 | 2026-10-03 | DisruptionOps | Navigation from the command centre is visible: citizen gets `/citizen/guide` routes (auto-started by an advisory with a safe location); crews get their unit's dispatched route, steps and ETA from `/field/state`, with hazards ahead and re-route notices. |
 | 2026-10-03 | both | VLM/camera alerts are government-only (item 1). |
 | 2026-10-03 | both | Sign-in in BiChat with the PWA accounts (item 2), one app online/offline (item 3), native report and crew status over the mesh (item 4), Apple-style redesign foundation (item 5). |
+| 2026-10-03 | kurukshetra | Map shows command-centre road closures and alerts with their radius, and the crew's dispatch as "Your task" (item 6). Remaining screens restyled; emoji icons removed (item 5). |
 | earlier | kurukshetra | `IndradhanuGateway`: phone ↔ command centre bridge (push mesh SOS/reports, pull outbox alerts/dispatches/road blocks onto the mesh as role COMMAND, cache centres + routes). See `src/bitchat-android/docs/COMMAND_CENTRE_LINK.md`. |
 
 Verified only in this order: PWA typecheck/build/lint (no new errors); backend tests;
-new Android files compiled against a stand-in classpath. Edits inside existing Android
-screens (ChatScreen, ChatHeader, AboutSheet, MessageComponents, ChatViewModel,
-MainActivity) were reviewed by hand, not compiled. **The Android app has not yet been built on a device** —
+new Android files and the map compiled against a stand-in classpath (map packet parsing
+also run). Edits inside existing Android screens (ChatScreen, ChatHeader, AboutSheet,
+MessageComponents, ChatViewModel, MainActivity, InputComponents, ShelterSheet,
+MeshPeerListSheet, LocationChannelsSheet, PermissionExplanationScreen) were reviewed by
+hand, not compiled. **The Android app has not yet been built on a device** —
 do that first on the next session (`cd src/bitchat-android && ./gradlew :app:assembleDebug`).
 
 ---
@@ -98,38 +101,42 @@ do that first on the next session (`cd src/bitchat-android && ./gradlew :app:ass
 
 | Online (PWA) | Offline (BiChat) | Status |
 |---|---|---|
-| See incidents, alerts, road blocks | Command broadcasts via gateway, geo-tagged messages, registry | partly done; road blocks are not drawn as closures on the native map yet |
+| See incidents, alerts, road blocks | Command broadcasts via gateway; closures (`B`) and alerts (`A`) drawn as areas on the map | done |
 | Guidance to shelter/hospital/food/water | Saved routes (`RouteCache`) + the PWA's destination carried over | done |
 | Report a hazard (text/photo/voice) | Report sheet → IDX1 `R` (category + words + GPS) | done (text only) |
 | Crew status (accepted, on site, done, road blocked) | Report sheet "My task" → IDX1 `F` with the unit id from the PWA | done |
-| Crew dispatch + route | Dispatch `D` shows as a message; task location carried over from the PWA | partly done |
+| Crew dispatch + route | Dispatch `D` for this unit → "Your task" on the map and the guidance target; cancel `C` removes it | done |
 | SOS | SOS sheet (quick reasons + note) → SOS broadcast + map | done |
 
-### 5. Apple-style redesign of all of BiChat  ·  status: foundation done, screens in progress
+### 5. Apple-style redesign of all of BiChat  ·  status: done (verify on devices)
 
 Design direction (from the ui-ux-pro-max review): calm, trustworthy, system-like;
 no emoji icons; no purple/pink AI gradients; red reserved for emergencies.
 
 - [x] Tokens: Inter (bundled, OFL in `docs/third-party`), iOS system colours light/dark,
       iOS type scale on Material roles, spring motion, grouped-list palette, bubble colours.
-- [x] Components (`ui/design/AppleComponents.kt`): inset groups, rows, buttons, fields,
-      segmented control, status pill, large title, press-scale.
+- [x] Components (`ui/design/AppleComponents.kt`): inset groups, rows, toggle rows, field
+      rows, switch, buttons, fields, segmented control, status pill, large title.
 - [x] Home: avatar + "Nearby · N people in range" header, quick actions (SOS, Report, Map,
       Places), online/offline banner, capsule role filters.
-- [x] Chat: iMessage-style bubbles (yours blue on the right), SOS bubbles outlined red.
-- [x] Sheets: grabber, grouped background; Settings gets Account and "Name on the mesh".
-- [x] Sign-in screen; Report and SOS sheets.
-- [ ] Still in the old look: onboarding/permission screens, people sheet (`MeshPeerListSheet`),
-      private chat sheet header, channels sheet, shelters sheet layout, link settings
-      (`SyncSettingsSheet`), VLM settings, composer buttons. Restyle with the components.
-- [ ] Emoji still in notification previews and the unused `OfflineMapSheet`.
+- [x] Chat: iMessage-style bubbles; composer with send-with-location next to a filled send
+      button (fixes the old SOS/location buttons that could never send).
+- [x] Sheets: grabber, grouped background. Settings: Account, "Name on the mesh".
+- [x] Sign-in, Report, SOS, Places (was Shelters), command centre link, camera (VLM) settings.
+- [x] Onboarding: one setup-assistant layout (`onboarding/OnboardingStep.kt`) for permissions,
+      Bluetooth, location, battery, background location, start-up and error.
+- [x] People and channel lists, conversation header: readable sizes, primary-colour names.
+- [x] No emoji used as icons: notification previews use words; the unused emoji-marker
+      offline map sheet is removed.
+- [ ] Not restyled (rarely seen): debug settings, verification sheets, location notes.
 
-### 6. Command-centre navigation visibility (check list)
+### 6. Command-centre navigation visibility  ·  status: done
 
 - [x] Crew PWA shows its unit's dispatched route.
 - [x] Citizen PWA shows the guide route and auto-routes on an advisory.
-- [ ] BiChat native map draws command-centre road blocks (`B` packets) as closures and
-      uses dispatch `D` packets as the crew's guidance target.
+- [x] BiChat native map draws command-centre road blocks (`B` packets) as closures (dashed
+      yellow area), warns when the way passes through one, and uses the crew's dispatch (`D`)
+      as its guidance target. Needs the crew's unit id, which the field PWA hands over.
 
 ---
 
