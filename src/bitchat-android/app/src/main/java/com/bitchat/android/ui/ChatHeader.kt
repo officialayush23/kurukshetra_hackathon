@@ -738,36 +738,47 @@ private fun MainHeader(
                 .padding(start = HeaderInsetStart, end = HeaderInsetEnd),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Keep the brand and trailing actions fixed. Only the nickname yields under pressure.
-            BitChatBrandButton(
+            // The person (avatar → Settings), then where they are talking: the local mesh or a
+            // geohash channel, with how many people are in it. Nickname editing lives in
+            // Settings, so the bar stays a calm title rather than a text field.
+            val localRole by viewModel.localRole.collectAsStateWithLifecycle()
+            com.bitchat.android.ui.home.SelfAvatar(
+                name = nickname,
+                role = localRole,
                 onClick = onTitleClick,
                 onTripleClick = onTripleTitleClick,
-                contentDescription = stringResource(R.string.cd_open_about),
-                modifier = Modifier.size(HeaderTapTarget),
             )
-
-            // Nudge toward the brand glyph: the 44.dp tap target leaves more optical gap than the
-            // spacing between the mark and path label.
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
+            val channel = selectedLocationChannel
+            val isGeo = channel is com.bitchat.android.geohash.ChannelID.Location
+            val people = if (isGeo) geohashPeople.size else connectedPeers.count { it != viewModel.myPeerID }
+            Column(
                 modifier = Modifier
                     .weight(1f)
-                    .offset(x = (-6).dp)
+                    .padding(start = 4.dp)
+                    .clip(HeaderClusterShape)
+                    .pressScaleClickable(onClick = onLocationChannelsClick, pressedScale = 0.98f)
+                    .padding(vertical = 2.dp)
             ) {
                 Text(
-                    text = "/",
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontSize = HeaderTextSize,
-                    // Dimmed: the slash is a separator, not content. At full brightness it competed
-                    // with the nickname beside it.
-                    color = colorScheme.primary.copy(alpha = 0.45f),
-                    modifier = Modifier.padding(end = 2.dp)
+                    text = if (channel is com.bitchat.android.geohash.ChannelID.Location) {
+                        "#${channel.channel.geohash}"
+                    } else {
+                        "Nearby"
+                    },
+                    style = MaterialTheme.typography.titleLarge,
+                    color = colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
-
-                NicknameEditor(
-                    value = nickname,
-                    onValueChange = onNicknameChange,
-                    modifier = Modifier.weight(1f)
+                Text(
+                    text = when {
+                        people == 0 && !isGeo -> "No one in range yet"
+                        people == 1 -> "1 person " + if (isGeo) "here" else "in range"
+                        else -> "$people people " + if (isGeo) "here" else "in range"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (people > 0) palette.positive else colorScheme.onSurfaceVariant,
+                    maxLines = 1,
                 )
             }
 
@@ -803,7 +814,8 @@ private fun MainHeader(
                     LocationChannelsButton(
                         viewModel = viewModel,
                         onClick = onLocationChannelsClick,
-                        showLabel = crowdingMode != HeaderCrowdingMode.IconOnlyLocationChannel
+                        // The title already names the channel; the globe/mesh glyph is enough here.
+                        showLabel = false
                     )
                 }
 

@@ -86,7 +86,7 @@ class ChatUIUtilsTest {
         val timestamp = body.spanStyles.first {
             body.text.substring(it.start, it.end) == "  00:00"
         }.item
-        assertEquals(10.sp, timestamp.fontSize)
+        assertEquals(11.sp, timestamp.fontSize)
         assertEquals(FontWeight.Normal, timestamp.fontWeight)
         assertEquals(palette.textTertiary, timestamp.color)
     }
@@ -106,7 +106,7 @@ class ChatUIUtilsTest {
         val timestampAndPow = body.spanStyles.first {
             body.text.substring(it.start, it.end) == "  00:00 ⛨8b"
         }.item
-        assertEquals(10.sp, timestampAndPow.fontSize)
+        assertEquals(11.sp, timestampAndPow.fontSize)
         assertEquals(palette.textTertiary, timestampAndPow.color)
     }
 
@@ -143,12 +143,12 @@ class ChatUIUtilsTest {
 
     @Test
     fun `chat text styles match the exported type scale`() {
-        assertEquals(14.sp, MessageBodyTextStyle.fontSize)
-        assertEquals(20.sp, MessageBodyTextStyle.lineHeight)
+        assertEquals(16.sp, MessageBodyTextStyle.fontSize)
+        assertEquals(22.sp, MessageBodyTextStyle.lineHeight)
         assertEquals(FontWeight.Normal, MessageBodyTextStyle.fontWeight)
         assertEquals(BitchatFontFamily, MessageBodyTextStyle.fontFamily)
-        assertEquals(14.sp, MessageSenderTextStyle.fontSize)
-        assertEquals(16.sp, MessageSenderTextStyle.lineHeight)
+        assertEquals(13.sp, MessageSenderTextStyle.fontSize)
+        assertEquals(18.sp, MessageSenderTextStyle.lineHeight)
         assertEquals(FontWeight.SemiBold, MessageSenderTextStyle.fontWeight)
     }
 
@@ -366,10 +366,10 @@ class ChatUIUtilsTest {
             annotated.text.substring(it.start, it.end) == "  00:00"
         }.item
 
-        assertEquals(12.sp, action.fontSize)
+        assertEquals(13.sp, action.fontSize)
         assertEquals(FontWeight.Medium, action.fontWeight)
         assertEquals(colorScheme.onSurface.copy(alpha = 0.5f), action.color)
-        assertEquals(10.sp, time.fontSize)
+        assertEquals(11.sp, time.fontSize)
         assertEquals(FontWeight.Normal, time.fontWeight)
         assertEquals(colorScheme.onSurface.copy(alpha = 0.5f), time.color)
     }
@@ -385,14 +385,14 @@ class ChatUIUtilsTest {
             palette = palette,
         )
 
-        assertEquals("@carol#04af", sender.text)
+        assertEquals("carol#04af", sender.text)
 
         val suffixSpan = sender.spanStyles.first { sender.text.substring(it.start, it.end) == "#04af" }
-        val nameSpan = sender.spanStyles.first { sender.text.substring(it.start, it.end) == "@carol" }
+        val nameSpan = sender.spanStyles.first { sender.text.substring(it.start, it.end) == "carol" }
         assertNotNull(suffixSpan.item.color)
-        assertEquals(14.sp, nameSpan.item.fontSize)
+        assertEquals(13.sp, nameSpan.item.fontSize)
         assertEquals(FontWeight.SemiBold, nameSpan.item.fontWeight)
-        assertEquals(14.sp, suffixSpan.item.fontSize)
+        assertEquals(13.sp, suffixSpan.item.fontSize)
         assertEquals(FontWeight.Normal, suffixSpan.item.fontWeight)
         assertEquals(ChatVisualTokens.SenderSuffixAlpha, suffixSpan.item.color.alpha)
         assertTrue(

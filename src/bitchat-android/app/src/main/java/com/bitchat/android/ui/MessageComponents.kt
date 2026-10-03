@@ -37,6 +37,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -405,7 +408,9 @@ fun MessageItem(
         modifier = modifier
             .fillMaxWidth()
             .padding(top = topSpacing),
-        verticalArrangement = Arrangement.spacedBy(0.dp)
+        verticalArrangement = Arrangement.spacedBy(0.dp),
+        // Chips under a bubble (location, reach) follow the bubble's side.
+        horizontalAlignment = if (message.sender == currentUserNickname) Alignment.End else Alignment.Start,
     ) {
         Box(modifier = Modifier.fillMaxWidth()) {
             Row(
@@ -716,27 +721,35 @@ internal fun TextMessageLayout(
     showSender: Boolean = true,
     bodyContent: String = message.content,
 ) {
-    val palette = LocalBitchatPalette.current
+    val basePalette = LocalBitchatPalette.current
     val myPeerId = meshService.myPeerID
+    val isSelf = message.isFromSelf(currentUserNickname, myPeerId)
+    // Your own messages sit in an accent bubble: everything inside it (timestamp, links,
+    // mentions) is drawn in the bubble's foreground so it keeps its contrast.
+    val bubbleColor = if (isSelf) basePalette.bubbleOutgoing else basePalette.bubbleIncoming
+    val inkColor = if (isSelf) basePalette.onBubbleOutgoing else colorScheme.onSurface
+    val palette = remember(basePalette, isSelf) {
+        if (isSelf) basePalette.copy(textTertiary = basePalette.onBubbleOutgoing.copy(alpha = 0.72f)) else basePalette
+    }
+    val linkColor = if (isSelf) basePalette.onBubbleOutgoing else colorScheme.primary
     val displayMessage = remember(message, bodyContent) {
         if (bodyContent == message.content) message else message.copy(content = bodyContent)
     }
-    val senderText = remember(message, currentUserNickname, myPeerId, palette) {
+    val senderText = remember(message, currentUserNickname, myPeerId, basePalette) {
         formatTextMessageSender(
             message = message,
             currentUserNickname = currentUserNickname,
             myPeerID = myPeerId,
-            palette = palette,
+            palette = basePalette,
         )
     }
-    // The timestamp trails the body rather than occupying its own column, so a short message
-    // no longer reserves a full-width row for eight grey characters.
+    // The timestamp trails the body inside the bubble rather than occupying its own row.
     val bodyText = remember(
         displayMessage,
         currentUserNickname,
         palette,
-        colorScheme.onSurface,
-        colorScheme.secondary,
+        inkColor,
+        linkColor,
         mentionPeerIdentities,
         timeFormatter
     ) {
@@ -744,30 +757,32 @@ internal fun TextMessageLayout(
             message = displayMessage,
             currentUserNickname = currentUserNickname,
             palette = palette,
-            contentColor = colorScheme.onSurface,
-            linkColor = colorScheme.secondary,
+            contentColor = inkColor,
+            linkColor = linkColor,
             mentionPeerIdentities = mentionPeerIdentities,
             timeFormatter = timeFormatter,
         )
     }
-    val isSelf = message.isFromSelf(currentUserNickname, myPeerId)
     val haptic = LocalHapticFeedback.current
     val context = LocalContext.current
     val handleLongPress: () -> Unit = {
         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
         onMessageLongPress?.invoke(message)
     }
+    // Emergency messages keep red as their only signal: a red bubble edge, never red text.
+    val isSos = remember(message.content) { com.bitchat.android.ui.map.isSosMessage(message.content) }
 
     Column(
         modifier = modifier.fillMaxWidth(),
+        horizontalAlignment = if (isSelf) Alignment.End else Alignment.Start,
         verticalArrangement = Arrangement.spacedBy(MessageGrouping.SENDER_TO_BODY_SPACING),
     ) {
-        if (showSender) {
+        if (showSender && !isSelf) {
             AnnotatedClickableText(
                 text = senderText,
                 annotationTags = listOf("nickname_click"),
                 onAnnotationClick = { tag, item ->
-                    if (tag == "nickname_click" && !isSelf && onNicknameClick != null) {
+                    if (tag == "nickname_click" && onNicknameClick != null) {
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         onNicknameClick.invoke(item)
                         true
@@ -777,41 +792,59 @@ internal fun TextMessageLayout(
                 },
                 onLongPress = handleLongPress,
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = MessageGrouping.SENDER_TOP_PADDING),
+                    .padding(top = MessageGrouping.SENDER_TOP_PADDING, start = 12.dp),
                 fontFamily = BitchatFontFamily,
                 softWrap = false,
                 overflow = TextOverflow.Ellipsis,
                 style = MessageSenderTextStyle,
             )
+        } else if (showSender) {
+            Spacer(Modifier.height(MessageGrouping.SENDER_TOP_PADDING))
         }
 
-        AnnotatedClickableText(
-            text = bodyText,
-            annotationTags = listOf("geohash_click", "url_click"),
-            onAnnotationClick = { tag, item ->
-                when (tag) {
-                    "geohash_click" -> {
-                        navigateToGeohash(context, item)
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        true
-                    }
+        Box(
+            Modifier
+                .fillMaxWidth(0.82f)
+                .wrapContentWidth(if (isSelf) Alignment.End else Alignment.Start)
+        ) {
+            Box(
+                Modifier
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(bubbleColor)
+                    .then(
+                        if (isSos) Modifier.border(1.5.dp, colorScheme.error, RoundedCornerShape(18.dp))
+                        else Modifier
+                    )
+                    .padding(horizontal = 13.dp, vertical = 8.dp)
+            ) {
+                AnnotatedClickableText(
+                    text = bodyText,
+                    annotationTags = listOf("geohash_click", "url_click"),
+                    onAnnotationClick = { tag, item ->
+                        when (tag) {
+                            "geohash_click" -> {
+                                navigateToGeohash(context, item)
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                true
+                            }
 
-                    "url_click" -> {
-                        openMessageUrl(context, item)
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        true
-                    }
+                            "url_click" -> {
+                                openMessageUrl(context, item)
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                true
+                            }
 
-                    else -> false
-                }
-            },
-            onLongPress = handleLongPress,
-            fontFamily = BitchatFontFamily,
-            softWrap = true,
-            overflow = TextOverflow.Visible,
-            style = MessageBodyTextStyle.copy(color = colorScheme.onSurface),
-        )
+                            else -> false
+                        }
+                    },
+                    onLongPress = handleLongPress,
+                    fontFamily = BitchatFontFamily,
+                    softWrap = true,
+                    overflow = TextOverflow.Visible,
+                    style = MessageBodyTextStyle.copy(color = inkColor),
+                )
+            }
+        }
     }
 }
 

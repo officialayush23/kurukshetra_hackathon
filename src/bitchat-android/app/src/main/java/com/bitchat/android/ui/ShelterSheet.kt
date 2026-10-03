@@ -51,7 +51,6 @@ import com.bitchat.android.model.Shelter
 import com.bitchat.android.model.ShelterStatus
 import com.bitchat.android.services.AppStateStore
 import com.bitchat.android.ui.map.formatDistance
-import com.bitchat.android.ui.map.roleEmoji
 import com.bitchat.android.ui.map.shelterStatusColorArgb
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.tasks.CancellationTokenSource
@@ -152,8 +151,8 @@ fun ShelterSheet(
     ) {
         Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
             Text(
-                if (isResponder) "Register ${roleEmoji(localRole)} ${Role.displayLabel(localRole)} node" else "Register SOS Beacon 🆘",
-                style = MaterialTheme.typography.titleMedium
+                if (isResponder) "Register a ${Role.displayLabel(localRole)} point" else "Register an SOS beacon",
+                style = MaterialTheme.typography.headlineSmall
             )
             Spacer(Modifier.height(8.dp))
             Text(
@@ -179,7 +178,7 @@ fun ShelterSheet(
                         ) {}
                         Spacer(Modifier.width(8.dp))
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("${roleEmoji(s.role)} ${s.name}", style = MaterialTheme.typography.bodyMedium)
+                            Text(s.name, style = MaterialTheme.typography.bodyLarge)
                             val distLabel: String? = myLat?.let { la ->
                                 myLon?.let { lo ->
                                     val arr = FloatArray(1)
@@ -188,7 +187,7 @@ fun ShelterSheet(
                                 }
                             }
                             Text(
-                                "${roleEmoji(s.role)} cap ${s.capacity} · ${s.status.name.lowercase()}$distLabel · ${if (vs.verified) "verified" else "unverified"}",
+                                "${Role.displayLabel(s.role)} · room for ${s.capacity} · ${s.status.name.lowercase()}${distLabel ?: ""} · ${if (vs.verified) "verified" else "unverified"}",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = if (vs.verified) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
                             )
@@ -236,9 +235,9 @@ fun ShelterSheet(
             }
             Spacer(Modifier.height(8.dp))
             if (!isResponder) {
-                Text("Role: 🆘 SOS Beacon (civilian)", style = MaterialTheme.typography.bodySmall)
+                Text("Shared as: SOS beacon (civilian)", style = MaterialTheme.typography.bodySmall)
             } else {
-                Text("Role: ${roleEmoji(localRole)} ${Role.displayLabel(localRole)}", style = MaterialTheme.typography.bodySmall)
+                Text("Shared as: ${Role.displayLabel(localRole)}", style = MaterialTheme.typography.bodySmall)
             }
             Spacer(Modifier.height(8.dp))
             Row(
@@ -276,7 +275,7 @@ fun ShelterSheet(
                         name = ""
                     },
                     enabled = lat.isNotBlank() && lon.isNotBlank()
-                ) { Text(if (isResponder) "Publish + Gossip" else "🆘 Send SOS Beacon") }
+                ) { Text(if (isResponder) "Publish to the mesh" else "Send SOS beacon") }
                 Button(onClick = onOpenMap) { Text("Open Map") }
             }
             Spacer(Modifier.height(16.dp))

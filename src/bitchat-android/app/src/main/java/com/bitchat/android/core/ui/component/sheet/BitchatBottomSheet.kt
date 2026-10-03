@@ -1,6 +1,9 @@
 package com.bitchat.android.core.ui.component.sheet
 
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -56,9 +59,21 @@ fun BitchatBottomSheet(
         modifier = modifier.statusBarsPadding(),
         onDismissRequest = onDismissRequest,
         sheetState = sheetState,
-        dragHandle = null,
-        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-        containerColor = MaterialTheme.colorScheme.background,
+        // A small grabber, as on iOS: says "this can be swiped away" without a close button.
+        dragHandle = {
+            androidx.compose.foundation.layout.Box(
+                Modifier
+                    .padding(top = 6.dp, bottom = 2.dp)
+                    .size(width = 36.dp, height = 5.dp)
+                    .background(
+                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f),
+                        RoundedCornerShape(50),
+                    )
+            )
+        },
+        shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
+        // Grouped background, so cards (surface) read as cards in light and dark.
+        containerColor = com.bitchat.android.ui.theme.LocalBitchatPalette.current.groupedBackground,
     ) {
         CompositionLocalProvider(LocalSheetDismiss provides animatedDismiss) {
             content()

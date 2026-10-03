@@ -460,6 +460,64 @@ class ChatViewModel(
         }
     }
 
+    /**
+     * A hazard report over the mesh: readable words plus an IDX1 `R` packet, the same packet the
+     * Indradhanu PWA sends in mesh mode. Any phone with internet forwards it to the command
+     * centre, where it enters the same intake as a report typed online. [kind] is a command
+     * centre category id when the person picked one ("fire", "flooded_road"), else null and
+     * the words are read there.
+     */
+    fun sendMeshReport(kind: String?, text: String, onAccepted: (Boolean) -> Unit = {}) {
+        val words = text.trim()
+        if (words.isEmpty()) { onAccepted(false); return }
+        viewModelScope.launch {
+            val packet = buildIdx1Packet("R", kind, words, unit = null)
+            sendMessage(packet, onAccepted)
+            try { com.bitchat.android.vlm.IndradhanuGateway.onLocalSend(packet) } catch (_: Exception) { }
+        }
+    }
+
+    /**
+     * A field crew's status over the mesh (IDX1 `F`): "route_blocked" here, or "accepted",
+     * "on_site", "complete" for their task. The unit id comes from the online app when the crew
+     * last used it; without it the command centre still records the note.
+     */
+    fun sendCrewStatus(kind: String, note: String, onAccepted: (Boolean) -> Unit = {}) {
+        viewModelScope.launch {
+            val unit = com.bitchat.android.shell.Handoff.state.value.unitId
+            val words = note.trim().ifEmpty {
+                when (kind) {
+                    "route_blocked" -> "Road blocked here"
+                    "on_site" -> "Crew on site"
+                    "accepted" -> "Crew accepted the task"
+                    "complete" -> "Task complete"
+                    else -> kind
+                }
+            }
+            val packet = buildIdx1Packet("F", kind, words, unit)
+            sendMessage(packet, onAccepted)
+            try { com.bitchat.android.vlm.IndradhanuGateway.onLocalSend(packet) } catch (_: Exception) { }
+        }
+    }
+
+    private suspend fun buildIdx1Packet(type: String, kind: String?, words: String, unit: String?): String {
+        val coords = currentLocation() ?: com.bitchat.android.net.LastFix.cached
+        coords?.let { com.bitchat.android.net.LastFix.remember(it.first, it.second) }
+        val body = org.json.JSONObject()
+        body.put("id", "${type.lowercase()}-${System.currentTimeMillis().toString(36)}")
+        body.put("n", (state.getNicknameValue() ?: "mesh").take(40))
+        kind?.let { body.put("k", it) }
+        unit?.let { body.put("u", it) }
+        coords?.let { (la, lo) ->
+            body.put("la", Math.round(la * 100_000) / 100_000.0)
+            body.put("lo", Math.round(lo * 100_000) / 100_000.0)
+        }
+        body.put("x", words.take(280))
+        body.put("t", System.currentTimeMillis() / 1000)
+        val geo = coords?.let { (la, lo) -> " geo:%.5f,%.5f".format(java.util.Locale.US, la, lo) } ?: ""
+        return "${words.take(200)}$geo IDX1|$type|$body|-"
+    }
+
     /** Append the sender's current GPS to an outgoing broadcast (composer 📍 toggle). */
     fun sendBroadcastWithGeotag(
         content: String,

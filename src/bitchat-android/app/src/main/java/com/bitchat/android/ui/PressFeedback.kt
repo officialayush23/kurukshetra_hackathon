@@ -23,14 +23,14 @@ import androidx.compose.ui.draw.scale
 @Composable
 fun rememberPressScale(
     interactionSource: InteractionSource,
-    pressedScale: Float = 0.86f
+    pressedScale: Float = 0.92f
 ): Float {
     val isPressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
         targetValue = if (isPressed) pressedScale else 1f,
         animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessHigh
+            dampingRatio = com.bitchat.android.ui.theme.BitchatMotion.SPRING_DAMPING,
+            stiffness = com.bitchat.android.ui.theme.BitchatMotion.SPRING_STIFFNESS
         ),
         label = "pressScale"
     )
@@ -48,7 +48,7 @@ fun Modifier.pressScaleClickable(
     onClick: () -> Unit,
     enabled: Boolean = true,
     onClickLabel: String? = null,
-    pressedScale: Float = 0.86f
+    pressedScale: Float = 0.92f
 ): Modifier {
     val interactionSource = remember { MutableInteractionSource() }
     val scale = rememberPressScale(interactionSource, pressedScale)

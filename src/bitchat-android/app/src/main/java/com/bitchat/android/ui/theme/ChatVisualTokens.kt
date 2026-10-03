@@ -11,12 +11,24 @@ import androidx.compose.ui.unit.sp
 import com.bitchat.android.R
 
 /**
- * The bundled Geist Mono family used throughout the app.
+ * The app's text face: Inter, bundled (SIL Open Font License, see docs/third-party).
  *
- * Keeping the fonts in the APK preserves offline behavior and guarantees that the design-spec
- * metrics do not depend on which monospace family a device happens to provide.
+ * A neutral grotesque close to Apple's system face, so the app reads like a calm system
+ * utility rather than a terminal. Bundled rather than downloaded: the app has to look right
+ * on a phone that has never been online.
  */
 internal val BitchatFontFamily = FontFamily(
+    Font(R.font.inter_regular, FontWeight.Normal),
+    Font(R.font.inter_medium, FontWeight.Medium),
+    Font(R.font.inter_semibold, FontWeight.SemiBold),
+    Font(R.font.inter_bold, FontWeight.Bold),
+)
+
+/**
+ * Geist Mono, kept for things a person compares character by character: key fingerprints,
+ * peer ids, coordinates.
+ */
+internal val BitchatMonoFamily = FontFamily(
     Font(R.font.geist_mono_regular, FontWeight.Normal),
     Font(R.font.geist_mono_medium, FontWeight.Medium),
     Font(R.font.geist_mono_semibold, FontWeight.SemiBold),
@@ -25,13 +37,13 @@ internal val BitchatFontFamily = FontFamily(
 
 /** Exact typography, spacing, and opacity values exported for the chat transcript. */
 internal object ChatVisualTokens {
-    val MessageBodyFontSize: TextUnit = 14.sp
-    val MessageBodyLineHeight: TextUnit = 20.sp
-    val SenderFontSize: TextUnit = 14.sp
-    val SenderLineHeight: TextUnit = 16.sp
-    val SystemActionFontSize: TextUnit = 12.sp
-    val SystemActionLineHeight: TextUnit = 16.sp
-    val SystemTimeFontSize: TextUnit = 10.sp
+    val MessageBodyFontSize: TextUnit = 16.sp
+    val MessageBodyLineHeight: TextUnit = 22.sp
+    val SenderFontSize: TextUnit = 13.sp
+    val SenderLineHeight: TextUnit = 18.sp
+    val SystemActionFontSize: TextUnit = 13.sp
+    val SystemActionLineHeight: TextUnit = 18.sp
+    val SystemTimeFontSize: TextUnit = 11.sp
 
     val MessageItemSpacing: Dp = 8.dp
     val SenderTopPadding: Dp = 8.dp

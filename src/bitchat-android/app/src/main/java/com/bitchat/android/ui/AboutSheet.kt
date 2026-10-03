@@ -61,6 +61,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.material.icons.filled.Person
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.bitchat.android.ui.theme.BitchatFontFamily
 import com.bitchat.android.R
@@ -380,6 +383,12 @@ fun AboutSheet(
                     }
 
                     if (selectedTab == AboutTab.Settings) {
+                    // Account: who this phone is signed in as, and its name on the mesh.
+                    if (viewModel != null) {
+                        item(key = "account") {
+                            AccountSection(viewModel = viewModel, onDismiss = onDismiss)
+                        }
+                    }
                     // Appearance Section
                     item(key = "appearance") {
                         Column {
@@ -424,7 +433,7 @@ fun AboutSheet(
                     // Emergency-response role selector. Single-select: declares which responder
                     // role this device advertises via IdentityAnnouncement TLV 0x06. Hidden when
                     // no ViewModel is wired (e.g. preview / standalone sheet invocations).
-                    if (viewModel != null) {
+                    if (viewModel != null && com.bitchat.android.account.Account.session.value == null) {
                         item(key = "role") {
                             val localRole by viewModel.localRole.collectAsStateWithLifecycle()
                             Column {
@@ -1385,5 +1394,86 @@ private fun ApkShareExplanationDialog(
             containerColor = colorScheme.surface,
             tonalElevation = 8.dp
         )
+    }
+}
+
+
+/**
+ * Account and identity, at the top of Settings: the signed-in person (or a sign-in row), and
+ * the name other phones see. A signed-in role is set by the account, so it is shown, not picked.
+ */
+@Composable
+private fun AccountSection(viewModel: ChatViewModel, onDismiss: () -> Unit) {
+    val session by com.bitchat.android.account.Account.session.collectAsState()
+    val nickname by viewModel.nickname.collectAsStateWithLifecycle()
+    val localRole by viewModel.localRole.collectAsStateWithLifecycle()
+    var name by remember(nickname) { mutableStateOf(nickname) }
+    val focus = androidx.compose.ui.platform.LocalFocusManager.current
+
+    Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
+        Spacer(Modifier.height(16.dp))
+        com.bitchat.android.ui.design.InsetGroup(
+            header = "Account",
+            footer = session?.let {
+                "Role on the mesh: ${com.bitchat.android.model.Role.displayLabel(localRole)}, set by your account. " +
+                    "Last confirmed " + android.text.format.DateUtils.getRelativeTimeSpanString(it.verifiedAt) + "."
+            } ?: "Sign in with your Indradhanu account to use the online app and be recognised as crew or staff.",
+        ) {
+            val s = session
+            if (s != null) {
+                com.bitchat.android.ui.design.GroupRow(
+                    title = s.displayName,
+                    subtitle = s.roleLabel + " · " + s.email,
+                    icon = Icons.Filled.Person,
+                )
+                com.bitchat.android.ui.design.GroupDivider(inset = 58.dp)
+                com.bitchat.android.ui.design.GroupRow(
+                    title = "Switch account",
+                    accent = true,
+                    onClick = { onDismiss(); com.bitchat.android.shell.ShellActions.openSignIn() },
+                )
+                com.bitchat.android.ui.design.GroupDivider()
+                com.bitchat.android.ui.design.GroupRow(
+                    title = "Sign out",
+                    destructive = true,
+                    onClick = { com.bitchat.android.account.Account.signOut() },
+                )
+            } else {
+                com.bitchat.android.ui.design.GroupRow(
+                    title = "Sign in",
+                    subtitle = "Citizen, field crew or staff",
+                    icon = Icons.Filled.Person,
+                    chevron = true,
+                    onClick = { onDismiss(); com.bitchat.android.shell.ShellActions.openSignIn() },
+                )
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        com.bitchat.android.ui.design.InsetGroup(
+            header = "Name on the mesh",
+            footer = "People nearby see this name next to your messages.",
+        ) {
+            androidx.compose.foundation.text.BasicTextField(
+                value = name,
+                onValueChange = { name = it.take(24) },
+                singleLine = true,
+                textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
+                cursorBrush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.primary),
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                    imeAction = androidx.compose.ui.text.input.ImeAction.Done,
+                ),
+                keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = {
+                    if (name.isNotBlank() && name != nickname) viewModel.setNickname(name.trim())
+                    focus.clearFocus()
+                }),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp)
+                    .padding(horizontal = 16.dp, vertical = 14.dp)
+                    .onFocusChanged { f ->
+                        if (!f.isFocused && name.isNotBlank() && name != nickname) viewModel.setNickname(name.trim())
+                    },
+            )
+        }
     }
 }

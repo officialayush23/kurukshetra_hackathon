@@ -46,30 +46,63 @@ data class BitchatPalette(
      * new theme — see [PeerColorStyle] for contrast guidelines.
      */
     val peerColors: PeerColorStyle,
+
+    // MARK: - Grouped lists (iOS "inset grouped")
+    /** Page behind grouped sections: the grey around white cards in light mode. */
+    val groupedBackground: Color,
+    /** The card a group of rows sits on. */
+    val groupedCell: Color,
+    /** Hairline between rows inside a group. */
+    val separator: Color,
+    /** Outgoing message bubble and its text. */
+    val bubbleOutgoing: Color,
+    val onBubbleOutgoing: Color,
+    /** Incoming message bubble. Text uses onSurface. */
+    val bubbleIncoming: Color,
+    /** Translucent bar material for headers and the composer. */
+    val barMaterial: Color,
+    /** Success / connected. */
+    val positive: Color,
 )
 
 val DarkBitchatPalette = BitchatPalette(
-    inputOutline = Color(0xFF333635),
-    inputOutlineFocused = Color(0xFF5A605D),
-    inputSurface = Color(0xFF0B0B0B),
-    inputSurfaceFocused = Color(0xFF151515),
-    inputButton = Color(0xFF1E1E1E),
-    textTertiary = Color(0xFF6B776B),
+    inputOutline = Color(0xFF38383A),
+    inputOutlineFocused = Color(0xFF545458),
+    inputSurface = Color(0xFF1C1C1E),
+    inputSurfaceFocused = Color(0xFF2C2C2E),
+    inputButton = Color(0xFF2C2C2E),
+    textTertiary = Color(0xFF8E8E93),
     accentOrange = Color(0xFFFF9F0A),
     accentPurple = Color(0xFFBF5AF2),
     peerColors = PeerColorStyle.Dark,
+    groupedBackground = Color(0xFF000000),
+    groupedCell = Color(0xFF1C1C1E),
+    separator = Color(0xFF38383A),
+    bubbleOutgoing = Color(0xFF0A84FF),
+    onBubbleOutgoing = Color(0xFFFFFFFF),
+    bubbleIncoming = Color(0xFF26252A),
+    barMaterial = Color(0xE6161618),
+    positive = Color(0xFF30D158),
 )
 
 val LightBitchatPalette = BitchatPalette(
-    inputOutline = Color(0xFFCFD3D1),
-    inputOutlineFocused = Color(0xFF8E9490),
-    inputSurface = Color(0xFFFAFAFA),
-    inputSurfaceFocused = Color(0xFFF2F2F2),
-    inputButton = Color(0xFFE8E8E8),
-    textTertiary = Color(0xFF757F75),
-    accentOrange = Color(0xFFFF9500),
-    accentPurple = Color(0xFFAF52DE),
+    inputOutline = Color(0xFFD1D1D6),
+    inputOutlineFocused = Color(0xFFAEAEB2),
+    inputSurface = Color(0xFFFFFFFF),
+    inputSurfaceFocused = Color(0xFFFFFFFF),
+    inputButton = Color(0xFFE5E5EA),
+    textTertiary = Color(0xFF6E6E73),
+    accentOrange = Color(0xFFC93400),
+    accentPurple = Color(0xFF8944AB),
     peerColors = PeerColorStyle.Light,
+    groupedBackground = Color(0xFFF2F2F7),
+    groupedCell = Color(0xFFFFFFFF),
+    separator = Color(0xFFD8D8DC),
+    bubbleOutgoing = Color(0xFF007AFF),
+    onBubbleOutgoing = Color(0xFFFFFFFF),
+    bubbleIncoming = Color(0xFFE9E9EB),
+    barMaterial = Color(0xEBF9F9F9),
+    positive = Color(0xFF248A3D),
 )
 
 val LocalBitchatPalette = staticCompositionLocalOf { DarkBitchatPalette }
@@ -79,6 +112,10 @@ val LocalBitchatPalette = staticCompositionLocalOf { DarkBitchatPalette }
  * sluggish on a chat surface where the user is scanning quickly.
  */
 object BitchatMotion {
+    /** iOS-like spring: settles quickly with no visible bounce. */
+    const val SPRING_DAMPING = 0.86f
+    const val SPRING_STIFFNESS = 380f
+
     /** Icon tints, text colors, small fills. */
     const val QUICK_MS = 120
 

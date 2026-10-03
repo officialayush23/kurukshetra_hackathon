@@ -82,7 +82,7 @@ fun formatTextMessageSender(
             fontWeight = senderWeight
         )
     )
-    builder.append("@")
+    // Plain name, as in a messaging app; "@" stays for mentions inside the text.
     val nicknameStart = builder.length
     builder.append(truncateNickname(baseName))
     val nicknameEnd = builder.length

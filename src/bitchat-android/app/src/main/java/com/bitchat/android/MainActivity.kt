@@ -154,6 +154,10 @@ class MainActivity : OrientationAwareActivity() {
             onOnboardingFailed = ::handleOnboardingFailed
         )
         
+        com.bitchat.android.account.Account.init(this)
+        com.bitchat.android.shell.NetworkMonitor.init(this)
+        com.bitchat.android.shell.Handoff.init(this)
+
         setContent {
             BitchatTheme {
                 Scaffold(
@@ -313,26 +317,18 @@ class MainActivity : OrientationAwareActivity() {
             }
 
             OnboardingState.CHECKING, OnboardingState.INITIALIZING, OnboardingState.COMPLETE -> {
-                // Set up back navigation handling for the chat screen
-                val backCallback = object : OnBackPressedCallback(true) {
-                    override fun handleOnBackPressed() {
-                        // Let ChatViewModel handle navigation state
-                        val handled = chatViewModel.handleBackPressed()
-                        if (!handled) {
-                            // If ChatViewModel doesn't handle it, disable this callback
-                            // and let the system handle it (which will exit the app)
-                            this.isEnabled = false
-                            onBackPressedDispatcher.onBackPressed()
-                            this.isEnabled = true
-                        }
+                // One app: the online Indradhanu app when the command centre is reachable, the
+                // mesh app when it is not. See shell/AppShell.kt.
+                com.bitchat.android.shell.AppShell(chatViewModel) { controls ->
+                    // Back is handled by the chat (close sheets, leave a channel) and otherwise
+                    // sends the app to the background, as the system default would.
+                    androidx.activity.compose.BackHandler {
+                        if (!chatViewModel.handleBackPressed()) moveTaskToBack(true)
                     }
+                    ChatScreen(viewModel = chatViewModel, shell = controls)
                 }
-
-                // Add the callback - this will be automatically removed when the activity is destroyed
-                onBackPressedDispatcher.addCallback(this, backCallback)
-                ChatScreen(viewModel = chatViewModel)
             }
-            
+
             OnboardingState.ERROR -> {
                 InitializationErrorScreen(
                     modifier = modifier,

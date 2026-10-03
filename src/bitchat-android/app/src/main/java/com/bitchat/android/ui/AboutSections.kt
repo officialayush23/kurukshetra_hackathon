@@ -55,10 +55,10 @@ import com.bitchat.android.ui.theme.LocalBitchatPalette
  */
 
 /** Horizontal inset shared by every About section, so cards and labels align to one grid. */
-internal val AboutHorizontalPadding = 20.dp
+internal val AboutHorizontalPadding = 16.dp
 
 /** Card corner radius for grouped rows. */
-internal val AboutCardShape = RoundedCornerShape(16.dp)
+internal val AboutCardShape = RoundedCornerShape(12.dp)
 
 /** Leading icon column in settings-style sheet rows. */
 internal val SheetRowLeadingSlot = 22.dp
@@ -101,11 +101,11 @@ internal fun AboutSectionLabel(
     Text(
         text = text.uppercase(),
         fontFamily = BitchatFontFamily,
-        fontSize = 11.sp,
-        fontWeight = FontWeight.Medium,
-        letterSpacing = 0.8.sp,
-        color = palette.textTertiary,
-        modifier = modifier.padding(start = AboutHorizontalPadding, top = 24.dp, bottom = 8.dp)
+        fontSize = 12.sp,
+        fontWeight = FontWeight.Normal,
+        letterSpacing = 0.3.sp,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = modifier.padding(start = AboutHorizontalPadding + 16.dp, top = 24.dp, bottom = 6.dp)
     )
 }
 
