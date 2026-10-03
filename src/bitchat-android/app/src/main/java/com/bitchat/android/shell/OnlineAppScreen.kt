@@ -82,6 +82,16 @@ fun OnlineAppScreen(
 
     fun granted(p: String) = ContextCompat.checkSelfPermission(context, p) == PackageManager.PERMISSION_GRANTED
 
+    // The page asked for the microphone (voice report) before this app had permission:
+    // ask Android, then answer the page.
+    var pendingMic by remember { mutableStateOf<PermissionRequest?>(null) }
+    val micLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
+        pendingMic?.let { req ->
+            if (ok) req.grant(arrayOf(PermissionRequest.RESOURCE_AUDIO_CAPTURE)) else req.deny()
+        }
+        pendingMic = null
+    }
+
     val background = MaterialTheme.colorScheme.background
 
     Box(modifier.fillMaxSize().background(background)) {
@@ -146,6 +156,13 @@ fun OnlineAppScreen(
                         override fun onPermissionRequest(request: PermissionRequest) {
                             if (BiChatBridge.originOf(request.origin.toString()) != origin) {
                                 request.deny(); return
+                            }
+                            val wantsMic = PermissionRequest.RESOURCE_AUDIO_CAPTURE in request.resources
+                            if (wantsMic && !granted(Manifest.permission.RECORD_AUDIO)) {
+                                pendingMic?.deny()
+                                pendingMic = request
+                                micLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                                return
                             }
                             val allowed = request.resources.filter {
                                 (it == PermissionRequest.RESOURCE_AUDIO_CAPTURE && granted(Manifest.permission.RECORD_AUDIO)) ||

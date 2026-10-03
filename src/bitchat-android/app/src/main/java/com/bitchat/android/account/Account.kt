@@ -102,6 +102,12 @@ data class ClientConfig(val supabaseUrl: String, val anonKey: String, val appUrl
 
 object Account {
     private const val TAG = "Account"
+
+    /** The Indradhanu deployment this build talks to unless the person enters another. */
+    const val DEFAULT_COMMAND_CENTRE = "https://disruptionops.onrender.com"
+
+    /** Where the PWA lives; `/citizen` or `/field` is added by role. */
+    const val DEFAULT_APP_URL = "https://distro-ruddy.vercel.app"
     private const val PREFS = "bitchat_account_v1"
     private val JSON = "application/json; charset=utf-8".toMediaType()
 
@@ -152,6 +158,7 @@ object Account {
     /** The command centre address the person typed in sign-in or link settings. */
     private fun apiBase(): String =
         appContext?.let { SyncPreferences.getInstance(it).apiBaseUrl }.orEmpty()
+            .ifBlank { DEFAULT_COMMAND_CENTRE }
 
     fun setApiBase(url: String) {
         val ctx = appContext ?: return

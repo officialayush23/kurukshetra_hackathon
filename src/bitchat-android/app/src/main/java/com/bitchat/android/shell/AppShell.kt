@@ -97,7 +97,7 @@ fun AppShell(
         return
     }
 
-    val appUrl = config?.appUrl.orEmpty()
+    val appUrl = config?.appUrl.orEmpty().ifBlank { Account.DEFAULT_APP_URL }
     val onlineAvailable = online && appUrl.startsWith("http") && failedAt == 0L
     val mode = if (onlineAvailable && !pinnedMesh) ShellMode.Online else ShellMode.Mesh
 
