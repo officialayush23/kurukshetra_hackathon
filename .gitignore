@@ -78,3 +78,6 @@ Desktop.ini
 *.temp
 *.swp
 *~
+
+# Scratch files from AI coding sessions
+_claude_tmp/

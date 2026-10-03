@@ -122,8 +122,10 @@ import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.BoundingBox
@@ -238,6 +240,7 @@ fun EmergencyMapScreen(
                 restored = false,
             )
             fix = f
+            com.bitchat.android.net.LastFix.remember(f.lat, f.lon)
             // The last known position outlives the screen, so reopening the map with no
             // signal still shows where you were — marked as restored, never as live.
             if (f.timeMs - lastPersist > 15_000) {
@@ -264,6 +267,15 @@ fun EmergencyMapScreen(
         entities.filter { filter.matches(it.kind) || it.id == selectedId || it.id == guidanceTargetId }
     }
     val counts = remember(entities) { entities.groupingBy { it.kind }.eachCount() }
+
+    // ---- A real route to the guidance target, from RouteCache: the one saved for this
+    // place when the person is still near where it started, else fetched once while there
+    // is signal (and saved for offline). Without either, guidance stays the direct line.
+    var guideRoute by remember { mutableStateOf<RouteCache.Route?>(null) }
+    var routeLoading by remember { mutableStateOf(false) }
+    val routeKey = guidanceTarget?.let { routeCacheKey(it) }
+    // Re-checked when the person has moved far enough that a saved route no longer starts here.
+    val fixCell = fix?.let { "%.3f,%.3f".format(it.lat, it.lon) }
     val currentFix = fix
     val fixStale = currentFix != null && (currentFix.restored || now - currentFix.timeMs > STALE_FIX_MS)
     fun distanceTo(e: MapEntity): Float? = currentFix?.let { distanceMeters(it.lat, it.lon, e.lat, e.lon) }
@@ -410,7 +422,8 @@ fun EmergencyMapScreen(
     }
 
     // Push state into the overlay only when it changes; a redraw repaints every tile.
-    LaunchedEffect(shown, selectedId, guidanceTargetId, currentFix, showRings) {
+    LaunchedEffect(shown, selectedId, guidanceTargetId, currentFix, showRings, guideRoute) {
+        overlay.guidanceRoute = guideRoute?.points
         overlay.entities = shown
         overlay.selectedId = selectedId
         overlay.guidanceTargetId = guidanceTargetId
@@ -418,6 +431,33 @@ fun EmergencyMapScreen(
         overlay.showRings = showRings
         mapView.invalidate()
     }
+    LaunchedEffect(routeKey, fixCell, hasInternet) {
+        val target = guidanceTarget
+        val f = fix
+        if (routeKey == null || target == null || f == null) {
+            guideRoute = null
+            routeLoading = false
+            return@LaunchedEffect
+        }
+        val cached = withContext(Dispatchers.IO) { RouteCache.lookup(context, routeKey, f.lat, f.lon) }
+        if (cached != null) {
+            guideRoute = cached
+            routeLoading = false
+            return@LaunchedEffect
+        }
+        // A route saved from somewhere else no longer applies from here.
+        if (guideRoute?.let { distanceMeters(f.lat, f.lon, it.fromLat, it.fromLon) > RouteCache.REUSE_RADIUS_M } == true) {
+            guideRoute = null
+        }
+        if (!hasInternet || guideRoute != null) return@LaunchedEffect
+        routeLoading = true
+        val fetched = withContext(Dispatchers.IO) {
+            runCatching { RouteCache.fetchAndStore(context, f.lat, f.lon, target.asRouteTarget()) }.getOrNull()
+        }
+        routeLoading = false
+        if (fetched != null && guidanceTargetId == target.id) guideRoute = fetched
+    }
+
     LaunchedEffect(darkBasemap) {
         mapView.overlayManager.tilesOverlay.setColorFilter(if (darkBasemap) darkTileFilter() else null)
         mapView.invalidate()
@@ -558,6 +598,7 @@ fun EmergencyMapScreen(
                     )
                     guidanceTarget != null -> GuidanceSheet(
                         target = guidanceTarget,
+                        route = guideRoute,
                         fix = currentFix,
                         entities = entities,
                         onExit = { stopGuidance() },
@@ -648,6 +689,9 @@ fun EmergencyMapScreen(
                 if (guidanceTarget != null) {
                     NavigationPanel(
                         target = guidanceTarget,
+                        route = guideRoute,
+                        routeLoading = routeLoading,
+                        hasInternet = hasInternet,
                         fix = currentFix,
                         fixStale = fixStale,
                         now = now,
@@ -1092,8 +1136,25 @@ private fun SosBanner(entity: MapEntity, distanceM: Float?, onView: () -> Unit, 
 
 private data class Hazard(val entity: MapEntity, val aheadM: Double, val offLineM: Double)
 
-private fun hazardsAlong(fix: MapFix, target: MapEntity, entities: List<MapEntity>): List<Hazard> =
-    entities.asSequence()
+private fun hazardsAlong(
+    fix: MapFix,
+    target: MapEntity,
+    entities: List<MapEntity>,
+    route: RouteCache.Route? = null,
+): List<Hazard> {
+    val pts = route?.points
+    if (pts != null && pts.size >= 2) {
+        val from = positionOnLine(pts, fix.lat, fix.lon)?.alongM ?: 0.0
+        return entities.asSequence()
+            .filter { it.id != target.id && (it.kind == MapEntityKind.SOS || it.kind == MapEntityKind.INCIDENT) }
+            .mapNotNull { e ->
+                val p = positionOnLine(pts, e.lat, e.lon) ?: return@mapNotNull null
+                if (p.offM > CORRIDOR_M || p.alongM < from) null else Hazard(e, p.alongM - from, p.offM)
+            }
+            .sortedBy { it.aheadM }
+            .toList()
+    }
+    return entities.asSequence()
         .filter { it.id != target.id && (it.kind == MapEntityKind.SOS || it.kind == MapEntityKind.INCIDENT) }
         .mapNotNull { e ->
             val off = distanceToSegmentMeters(e.lat, e.lon, fix.lat, fix.lon, target.lat, target.lon)
@@ -1102,10 +1163,24 @@ private fun hazardsAlong(fix: MapFix, target: MapEntity, entities: List<MapEntit
         }
         .sortedBy { it.aheadM }
         .toList()
+}
+
+/** RouteCache stores by shelter id for registry nodes, and by entity id for messages. */
+private fun routeCacheKey(e: MapEntity): String = if (e.messageId == null) e.id.removePrefix("node:") else e.id
+
+/** RouteCache fetches to a Shelter; only its id and position are used. */
+private fun MapEntity.asRouteTarget() = com.bitchat.android.model.Shelter(
+    id = routeCacheKey(this), name = title, lat = lat, lon = lon,
+    capacity = capacity ?: 0, role = reporterRole, status = status ?: ShelterStatus.OPEN,
+    version = 0L, originPeerID = peerID ?: "",
+)
 
 @Composable
 private fun NavigationPanel(
     target: MapEntity,
+    route: RouteCache.Route?,
+    routeLoading: Boolean,
+    hasInternet: Boolean,
     fix: MapFix?,
     fixStale: Boolean,
     now: Long,
@@ -1113,12 +1188,19 @@ private fun NavigationPanel(
     entities: List<MapEntity>,
     onExit: () -> Unit,
 ) {
-    val distance = fix?.let { distanceMeters(it.lat, it.lon, target.lat, target.lon) }
+    val straight = fix?.let { distanceMeters(it.lat, it.lon, target.lat, target.lon) }
     val bearing = fix?.let { bearingDegrees(it.lat, it.lon, target.lat, target.lon) }
-    val hazards = remember(fix?.lat, fix?.lon, target.id, entities) {
-        if (fix == null) emptyList() else hazardsAlong(fix, target, entities)
+    // Along the saved route when there is one, measured from the nearest point on it.
+    val onRoute = if (fix != null && route != null) positionOnLine(route.points, fix.lat, fix.lon) else null
+    val routeLeft = onRoute?.let { (it.totalM - it.alongM).coerceAtLeast(0.0).toFloat() }
+    val distance = routeLeft ?: straight
+    val minutesLeft = if (route != null && onRoute != null && onRoute.totalM > 0 && route.seconds.isFinite()) {
+        ((route.seconds / 60.0) * (onRoute.totalM - onRoute.alongM) / onRoute.totalM).roundToInt().coerceAtLeast(1)
+    } else null
+    val hazards = remember(fix?.lat, fix?.lon, target.id, entities, route) {
+        if (fix == null) emptyList() else hazardsAlong(fix, target, entities, route)
     }
-    val arrived = distance != null && distance < ARRIVED_M
+    val arrived = straight != null && straight < ARRIVED_M
     val actor = roleActorLabel(localRole) ?: "You"
 
     FloatingSurface(shape = RoundedCornerShape(22.dp)) {
@@ -1158,7 +1240,12 @@ private fun NavigationPanel(
                     Text(formatMeters(distance), style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.width(8.dp))
                     Text(
-                        "${compassWord(bearing)} · direct",
+                        if (route != null) {
+                            listOfNotNull(
+                                if (route.profile == "foot") "walk" else "by road",
+                                minutesLeft?.let { "~$it min" },
+                            ).joinToString(" · ")
+                        } else "${compassWord(bearing)} · direct",
                         style = MaterialTheme.typography.bodySmall,
                         color = MapPalette.TextSecondary
                     )
@@ -1167,10 +1254,26 @@ private fun NavigationPanel(
                 Text("Waiting for your location…", style = MaterialTheme.typography.titleMedium)
             }
             Spacer(Modifier.height(6.dp))
-            StatusLine(
-                color = MapPalette.Uncertain,
-                text = "Direct line, not a road route · road conditions unknown",
-            )
+            when {
+                route != null -> StatusLine(
+                    color = MapPalette.Route,
+                    text = "Saved ${if (route.profile == "foot") "walking" else "road"} route from " +
+                        "${formatAge(System.currentTimeMillis() - route.savedAt)} · works offline · " +
+                        "closures since then are not known",
+                )
+                routeLoading -> StatusLine(
+                    color = MapPalette.Uncertain,
+                    text = "Finding a route… showing the direct line meanwhile",
+                )
+                else -> StatusLine(
+                    color = MapPalette.Uncertain,
+                    text = if (hasInternet) "No route found · direct line, not a road · road conditions unknown"
+                    else "Offline, no saved route · direct line, not a road · road conditions unknown",
+                )
+            }
+            if (onRoute != null && onRoute.offM > 120) {
+                StatusLine(color = MapPalette.Stale, text = "About ${formatMeters(onRoute.offM.toFloat())} off the saved route")
+            }
             if (fix != null && fixStale) {
                 StatusLine(color = MapPalette.Stale, text = "Your location is ${formatAge(now - fix.timeMs)} old")
             }
@@ -1178,7 +1281,7 @@ private fun NavigationPanel(
                 StatusLine(
                     color = if (h.entity.isCritical) MapPalette.Sos else MapPalette.Report,
                     text = "${h.entity.headline} ${formatMeters(h.aheadM.toFloat())} ahead, " +
-                        "${formatMeters(h.offLineM.toFloat())} off this line" +
+                        "${formatMeters(h.offLineM.toFloat())} off the way" +
                         if (hazards.size > 1) " · +${hazards.size - 1} more" else "",
                 )
             }
@@ -1198,6 +1301,7 @@ private fun StatusLine(color: Color, text: String) {
 @Composable
 private fun ColumnScope.GuidanceSheet(
     target: MapEntity,
+    route: RouteCache.Route?,
     fix: MapFix?,
     entities: List<MapEntity>,
     onExit: () -> Unit,
@@ -1217,19 +1321,28 @@ private fun ColumnScope.GuidanceSheet(
     Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         SectionLabel("About this guidance")
         Text(
-            "BiChat has no road data on the mesh. This shows the straight line and distance to " +
-                "${target.headline}, updated as you move. For roads, closures and an arrival " +
-                "time, open it in a maps app while you have signal.",
+            if (route != null) {
+                "This is a ${if (route.profile == "foot") "walking" else "road"} route to " +
+                    "${target.headline}, fetched while there was signal and saved on this phone, so " +
+                    "it keeps working offline. It does not know about closures reported since " +
+                    "it was saved — check the reports along it below."
+            } else {
+                "No route is saved for this place from here. This shows the straight line and " +
+                    "distance to ${target.headline}, updated as you move. A route is fetched and " +
+                    "saved automatically next time there is signal; for live directions, open it " +
+                    "in a maps app."
+            },
             style = MaterialTheme.typography.bodySmall,
             color = MapPalette.TextSecondary,
         )
-        val hazards = if (fix == null) emptyList() else hazardsAlong(fix, target, entities)
-        SectionLabel(if (hazards.isEmpty()) "Along the line" else "Along the line · ${hazards.size}")
+        val hazards = if (fix == null) emptyList() else hazardsAlong(fix, target, entities, route)
+        val along = if (route != null) "Along the route" else "Along the line"
+        SectionLabel(if (hazards.isEmpty()) along else "$along · ${hazards.size}")
         if (fix == null) {
             Text("Needs your location.", style = MaterialTheme.typography.bodySmall, color = MapPalette.TextTertiary)
         } else if (hazards.isEmpty()) {
             Text(
-                "No SOS or reports within ${CORRIDOR_M.toInt()} m of this line. That is only what " +
+                "No SOS or reports within ${CORRIDOR_M.toInt()} m of it. That is only what " +
                     "has reached this phone — it is not a safety check.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MapPalette.TextTertiary,
@@ -1239,7 +1352,7 @@ private fun ColumnScope.GuidanceSheet(
                 EntityRow(
                     entity = h.entity,
                     trailing = "${formatMeters(h.aheadM.toFloat())} ahead",
-                    subtitle = "${formatMeters(h.offLineM.toFloat())} off the line",
+                    subtitle = "${formatMeters(h.offLineM.toFloat())} off it",
                     onClick = { onSelect(h.entity) },
                 )
             }
@@ -1423,8 +1536,9 @@ private fun ColumnScope.EntitySheet(
 
         SectionLabel("Navigation")
         Text(
-            "Navigate shows the direct line and distance from you, updated as you move. It has no " +
-                "road or blockage data, so it is guidance, not a route.",
+            "Navigate uses a walking route saved on this phone when there is one (fetched while " +
+                "online, kept for offline). Without one it shows the direct line and distance, which " +
+                "is guidance, not a route. Neither knows about closures reported since.",
             style = MaterialTheme.typography.bodySmall,
             color = MapPalette.TextSecondary,
         )

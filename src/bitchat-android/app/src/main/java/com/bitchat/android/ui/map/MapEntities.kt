@@ -222,6 +222,28 @@ fun alongSegmentMeters(
     return ((px * dx + py * dy) / len).coerceIn(0.0, len)
 }
 
+/** Where a point sits against a polyline: metres along it from the start, metres off it. */
+data class LinePosition(val alongM: Double, val offM: Double, val totalM: Double)
+
+fun positionOnLine(points: List<Pair<Double, Double>>, lat: Double, lon: Double): LinePosition? {
+    if (points.size < 2) return null
+    var run = 0.0
+    var bestOff = Double.MAX_VALUE
+    var bestAlong = 0.0
+    for (i in 0 until points.lastIndex) {
+        val (aLat, aLon) = points[i]
+        val (bLat, bLon) = points[i + 1]
+        val seg = distanceMeters(aLat, aLon, bLat, bLon).toDouble()
+        val off = distanceToSegmentMeters(lat, lon, aLat, aLon, bLat, bLon)
+        if (off < bestOff) {
+            bestOff = off
+            bestAlong = run + alongSegmentMeters(lat, lon, aLat, aLon, bLat, bLon).coerceAtMost(seg)
+        }
+        run += seg
+    }
+    return LinePosition(bestAlong, bestOff, run)
+}
+
 // --------------------------------------------------------------- wording ---
 
 fun formatMeters(meters: Float): String = when {

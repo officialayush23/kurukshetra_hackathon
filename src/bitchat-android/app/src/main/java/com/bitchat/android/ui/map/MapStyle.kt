@@ -42,6 +42,9 @@ object MapPalette {
     val Shelter = Color(0xFF30D9A0)
     val You = Color(0xFF0A84FF)
 
+    /** A real walking/road route. */
+    val Route = Color(0xFF32D74B)
+
     /** Uncertain guidance: a direct line, not a road route. */
     val Uncertain = Color(0xFFFFB020)
 

@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.DashPathEffect
 import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.Point
 import android.graphics.RectF
 import android.graphics.Typeface
@@ -61,6 +62,8 @@ class EmergencyMapOverlay(
     var entities: List<MapEntity> = emptyList()
     var selectedId: String? = null
     var guidanceTargetId: String? = null
+    /** A real (cached or fetched) route to the guidance target, lat/lon pairs. */
+    var guidanceRoute: List<Pair<Double, Double>>? = null
     var fix: MapFix? = null
     var showRings: Boolean = false
 
@@ -174,9 +177,26 @@ class EmergencyMapOverlay(
             visible += Projected(e, x, y)
         }
 
-        // ---- guidance: a direct line, dashed, because it is not a road.
+        // ---- guidance: the saved route when there is one, solid; otherwise a direct
+        // line, dashed, because it is not a road.
         val target = guidanceTargetId?.let { id -> visible.firstOrNull { it.entity.id == id } }
-        if (me != null && target != null) {
+        val route = guidanceRoute
+        if (target != null && route != null && route.size >= 2) {
+            val path = Path()
+            route.forEachIndexed { i, (la, lo) ->
+                projection.toPixels(GeoPoint(la, lo), reusePoint)
+                if (i == 0) path.moveTo(reusePoint.x.toFloat(), reusePoint.y.toFloat())
+                else path.lineTo(reusePoint.x.toFloat(), reusePoint.y.toFloat())
+            }
+            linePaint.pathEffect = null
+            linePaint.strokeJoin = Paint.Join.ROUND
+            linePaint.color = 0xCC05070B.toInt()
+            linePaint.strokeWidth = dp(8f)
+            canvas.drawPath(path, linePaint)
+            linePaint.color = MapPalette.Route.toArgb()
+            linePaint.strokeWidth = dp(4.5f)
+            canvas.drawPath(path, linePaint)
+        } else if (me != null && target != null) {
             linePaint.pathEffect = null
             linePaint.color = 0xCC05070B.toInt()
             linePaint.strokeWidth = dp(7f)
