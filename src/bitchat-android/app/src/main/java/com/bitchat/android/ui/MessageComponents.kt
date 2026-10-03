@@ -8,6 +8,7 @@ import android.content.Intent
 import android.net.Uri
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.rounded.Place
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.Animatable
@@ -57,6 +58,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -217,7 +219,9 @@ fun MessagesList(
     onNicknameClick: ((String) -> Unit)? = null,
     onMessageLongPress: ((BitchatMessage) -> Unit)? = null,
     onCancelTransfer: ((BitchatMessage) -> Unit)? = null,
-    onImageClick: ((String, List<String>, Int) -> Unit)? = null
+    onImageClick: ((String, List<String>, Int) -> Unit)? = null,
+    /** Shown as a "View on map" chip under any message that carries a `geo:` tag. */
+    onViewLocation: ((BitchatMessage) -> Unit)? = null
 ) {
     val resolvedMentionPeerIdentities = remember(messages, mentionPeerIdentities) {
         mentionPeerIdentities ?: buildMentionPeerIdentityMap(messages)
@@ -360,6 +364,7 @@ fun MessagesList(
                 onMessageLongPress = onMessageLongPress,
                 onCancelTransfer = onCancelTransfer,
                 onImageClick = onImageClick,
+                onViewLocation = onViewLocation,
                 modifier = Modifier
                     // Animates the shift when a neighbour is inserted or removed: this is what
                     // makes the conversation glide up instead of jumping.
@@ -390,6 +395,7 @@ fun MessageItem(
     onMessageLongPress: ((BitchatMessage) -> Unit)? = null,
     onCancelTransfer: ((BitchatMessage) -> Unit)? = null,
     onImageClick: ((String, List<String>, Int) -> Unit)? = null,
+    onViewLocation: ((BitchatMessage) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val colorScheme = MaterialTheme.colorScheme
@@ -440,6 +446,22 @@ fun MessageItem(
                         DeliveryStatusIcon(status = status)
                     }
                 }
+            }
+        }
+
+        // A message that carries a position opens the map on it. Spatial and conversational
+        // views of the same event are one tap apart in both directions.
+        if (onViewLocation != null) {
+            val hasLocation = remember(message.content) {
+                com.bitchat.android.ui.map.parseGeoTag(message.content) != null
+            }
+            if (hasLocation) {
+                MessageLocationChip(
+                    isSos = remember(message.content) {
+                        com.bitchat.android.ui.map.isSosMessage(message.content)
+                    },
+                    onClick = { onViewLocation(message) }
+                )
             }
         }
 
@@ -1024,5 +1046,37 @@ fun MessageReachRow(message: BitchatMessage) {
                     .clickable { expanded = !expanded }
             )
         }
+    }
+}
+
+/** "View on map" under a message that carries a `geo:` tag; red for an SOS. */
+@Composable
+private fun MessageLocationChip(isSos: Boolean, onClick: () -> Unit) {
+    val accent = if (isSos) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+    Row(
+        modifier = Modifier
+            .padding(top = 6.dp, bottom = 2.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(accent.copy(alpha = 0.10f))
+            .border(1.dp, accent.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 5.dp)
+            .semantics { contentDescription = if (isSos) "View SOS location on map" else "View on map" },
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = Icons.Rounded.Place,
+            contentDescription = null,
+            tint = accent,
+            modifier = Modifier.size(14.dp)
+        )
+        androidx.compose.foundation.layout.Spacer(Modifier.size(6.dp))
+        Text(
+            text = if (isSos) "View SOS location" else "View on map",
+            fontFamily = BitchatFontFamily,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Medium,
+            color = accent
+        )
     }
 }
