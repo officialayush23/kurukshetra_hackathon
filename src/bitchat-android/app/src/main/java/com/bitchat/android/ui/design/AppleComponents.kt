@@ -503,3 +503,91 @@ fun LargeTitle(
 
 /** Standard content padding for a scrolling grouped screen. */
 val GroupedContentPadding = PaddingValues(top = 8.dp, bottom = 32.dp)
+
+// ------------------------------------------------------------------- settings rows ---
+
+/** The iOS switch look: green when on, white thumb, no outline. */
+@Composable
+fun AppleSwitch(checked: Boolean, onCheckedChange: ((Boolean) -> Unit)?, enabled: Boolean = true) {
+    val palette = LocalBitchatPalette.current
+    androidx.compose.material3.Switch(
+        checked = checked,
+        onCheckedChange = onCheckedChange,
+        enabled = enabled,
+        colors = androidx.compose.material3.SwitchDefaults.colors(
+            checkedThumbColor = Color.White,
+            checkedTrackColor = palette.positive,
+            checkedBorderColor = Color.Transparent,
+            uncheckedThumbColor = Color.White,
+            uncheckedTrackColor = palette.inputButton,
+            uncheckedBorderColor = Color.Transparent,
+        ),
+    )
+}
+
+/** A grouped-list row with a switch. The whole row toggles, not only the switch. */
+@Composable
+fun GroupToggleRow(
+    title: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    subtitle: String? = null,
+    icon: ImageVector? = null,
+    iconTint: Color = MaterialTheme.colorScheme.primary,
+    enabled: Boolean = true,
+) {
+    GroupRow(
+        title = title,
+        subtitle = subtitle,
+        icon = icon,
+        iconTint = iconTint,
+        enabled = enabled,
+        onClick = { onCheckedChange(!checked) },
+        trailing = { AppleSwitch(checked, null, enabled) },
+    )
+}
+
+/**
+ * A text entry inside a grouped list: label on the left, the value on the right, as in iOS
+ * Settings forms. Secure fields hide their value.
+ */
+@Composable
+fun GroupFieldRow(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String = "",
+    secure: Boolean = false,
+    keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
+) {
+    val palette = LocalBitchatPalette.current
+    val scheme = MaterialTheme.colorScheme
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = Apple.RowMinHeight)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text(label, style = MaterialTheme.typography.bodyLarge, color = scheme.onSurface, modifier = Modifier.widthIn(min = 88.dp, max = 140.dp))
+        BasicTextField(
+            value = value,
+            onValueChange = onValueChange,
+            singleLine = true,
+            textStyle = MaterialTheme.typography.bodyLarge.copy(color = scheme.onSurfaceVariant, textAlign = androidx.compose.ui.text.style.TextAlign.End),
+            cursorBrush = SolidColor(scheme.primary),
+            visualTransformation = if (secure) PasswordVisualTransformation() else VisualTransformation.None,
+            keyboardOptions = keyboardOptions,
+            modifier = Modifier.weight(1f),
+            decorationBox = { inner ->
+                Box(contentAlignment = Alignment.CenterEnd) {
+                    if (value.isEmpty() && placeholder.isNotEmpty()) {
+                        Text(placeholder, style = MaterialTheme.typography.bodyLarge, color = palette.textTertiary, maxLines = 1)
+                    }
+                    inner()
+                }
+            },
+        )
+    }
+}

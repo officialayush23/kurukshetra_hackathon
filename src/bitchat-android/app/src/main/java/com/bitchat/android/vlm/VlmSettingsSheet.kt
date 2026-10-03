@@ -1,22 +1,47 @@
 package com.bitchat.android.vlm
 
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.NotificationsOff
+import androidx.compose.material.icons.rounded.Videocam
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.bitchat.android.core.ui.component.sheet.BitchatBottomSheet
-import com.bitchat.android.core.ui.component.sheet.BitchatSheetTopBar
-import com.bitchat.android.core.ui.component.sheet.BitchatSheetTitle
-import com.bitchat.android.ui.theme.BitchatFontFamily
+import com.bitchat.android.ui.design.GroupDivider
+import com.bitchat.android.ui.design.GroupFieldRow
+import com.bitchat.android.ui.design.GroupRow
+import com.bitchat.android.ui.design.GroupToggleRow
+import com.bitchat.android.ui.design.InsetGroup
+import com.bitchat.android.ui.design.StatusPill
+import com.bitchat.android.ui.design.SegmentedControl
+import com.bitchat.android.ui.theme.AppleColors
+import com.bitchat.android.ui.theme.BitchatMonoFamily
+import com.bitchat.android.ui.theme.LocalBitchatPalette
 
+/**
+ * Camera / VLM API: lets the surveillance pipeline on a nearby computer post detections into
+ * the mesh through this phone. Detections reach only Gov and Command phones (AudiencePolicy).
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VlmSettingsSheet(
@@ -24,8 +49,6 @@ fun VlmSettingsSheet(
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
-    val colorScheme = MaterialTheme.colorScheme
-
     VlmSettingsManager.initialize(context)
 
     var enabled by remember { mutableStateOf(VlmSettingsManager.isEnabled()) }
@@ -34,318 +57,159 @@ fun VlmSettingsSheet(
     var rateLimit by remember { mutableStateOf(VlmSettingsManager.getRateLimitMs().toString()) }
     var defaultDestType by remember { mutableStateOf(VlmSettingsManager.getDefaultDestination()?.type ?: "") }
     var defaultDestId by remember { mutableStateOf(VlmSettingsManager.getDefaultDestination()?.id ?: "") }
+    var saved by remember { mutableStateOf(false) }
 
     if (!isPresented) return
 
-    BitchatBottomSheet(
-        onDismissRequest = onDismiss
-    ) {
+    BitchatBottomSheet(onDismissRequest = onDismiss) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .navigationBarsPadding()
+                .padding(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            BitchatSheetTopBar(
-                onClose = onDismiss,
-                title = { BitchatSheetTitle("VLM API Settings") }
+            Text(
+                "Camera alerts",
+                style = MaterialTheme.typography.headlineSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(start = 20.dp, top = 12.dp, end = 20.dp),
+            )
+            Text(
+                "Lets the camera pipeline on a nearby computer send detections into the mesh through " +
+                    "this phone. Only Gov and Command phones show them; the command centre gets them " +
+                    "through any gateway.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 20.dp),
             )
 
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                item {
-                    VlmStatusSection(enabled = enabled)
-                }
+            VlmStatusSection(enabled = enabled)
 
-                item {
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = colorScheme.surfaceVariant.copy(alpha = 0.2f)
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column {
-                                    Text(
-                                        "Enable VLM API",
-                                        fontFamily = BitchatFontFamily,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                    Text(
-                                        "Allow external apps to send messages",
-                                        fontFamily = BitchatFontFamily,
-                                        fontSize = 12.sp,
-                                        color = colorScheme.onSurface.copy(alpha = 0.6f)
-                                    )
-                                }
-                                Switch(
-                                    checked = enabled,
-                                    onCheckedChange = { newEnabled ->
-                                        enabled = newEnabled
-                                        VlmSettingsManager.setEnabled(newEnabled)
-                                    }
-                                )
-                            }
-                        }
-                    }
-                }
-
-                item {
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = colorScheme.surfaceVariant.copy(alpha = 0.2f)
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Text(
-                                "HTTP Port",
-                                fontFamily = BitchatFontFamily,
-                                fontWeight = FontWeight.Medium
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            OutlinedTextField(
-                                value = httpPort,
-                                onValueChange = { port ->
-                                    httpPort = port
-                                    port.toIntOrNull()?.let { VlmSettingsManager.setHttpPort(it) }
-                                },
-                                modifier = Modifier.fillMaxWidth(),
-                                singleLine = true,
-                                placeholder = { Text("8765") }
-                            )
-                            Text(
-                                "ADB forwarding: adb forward tcp:$httpPort tcp:$httpPort",
-                                fontFamily = BitchatFontFamily,
-                                fontSize = 11.sp,
-                                color = colorScheme.onSurface.copy(alpha = 0.5f)
-                            )
-                        }
-                    }
-                }
-
-                item {
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = colorScheme.surfaceVariant.copy(alpha = 0.2f)
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Text(
-                                "Default Destination",
-                                fontFamily = BitchatFontFamily,
-                                fontWeight = FontWeight.Medium
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                OutlinedTextField(
-                                    value = defaultDestType,
-                                    onValueChange = { defaultDestType = it },
-                                    modifier = Modifier.weight(1f),
-                                    placeholder = { Text("peer or channel") },
-                                    singleLine = true
-                                )
-                                OutlinedTextField(
-                                    value = defaultDestId,
-                                    onValueChange = { defaultDestId = it },
-                                    modifier = Modifier.weight(1f),
-                                    placeholder = { Text("ID") },
-                                    singleLine = true
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Button(
-                                onClick = {
-                                    if (defaultDestType.isNotBlank() && defaultDestId.isNotBlank()) {
-                                        VlmSettingsManager.setDefaultDestination(
-                                            VlmDestination(defaultDestType, defaultDestId)
-                                        )
-                                    }
-                                },
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text("Save Destination", fontFamily = BitchatFontFamily)
-                            }
-                            Text(
-                                "Messages without explicit destination go here",
-                                fontFamily = BitchatFontFamily,
-                                fontSize = 11.sp,
-                                color = colorScheme.onSurface.copy(alpha = 0.5f)
-                            )
-                        }
-                    }
-                }
-
-                item {
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = colorScheme.surfaceVariant.copy(alpha = 0.2f)
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column {
-                                    Text(
-                                        "Silence Mode",
-                                        fontFamily = BitchatFontFamily,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                    Text(
-                                        "Pause all VLM messages",
-                                        fontFamily = BitchatFontFamily,
-                                        fontSize = 12.sp,
-                                        color = colorScheme.onSurface.copy(alpha = 0.6f)
-                                    )
-                                }
-                                Switch(
-                                    checked = silenceEnabled,
-                                    onCheckedChange = { newSilence ->
-                                        silenceEnabled = newSilence
-                                        VlmSettingsManager.setSilenceEnabled(newSilence)
-                                    }
-                                )
-                            }
-                        }
-                    }
-                }
-
-                item {
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = colorScheme.surfaceVariant.copy(alpha = 0.2f)
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Text(
-                                "Rate Limit (ms)",
-                                fontFamily = BitchatFontFamily,
-                                fontWeight = FontWeight.Medium
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            OutlinedTextField(
-                                value = rateLimit,
-                                onValueChange = { limit ->
-                                    rateLimit = limit
-                                    limit.toLongOrNull()?.let { VlmSettingsManager.setRateLimitMs(it) }
-                                },
-                                modifier = Modifier.fillMaxWidth(),
-                                singleLine = true,
-                                placeholder = { Text("5000") }
-                            )
-                            Text(
-                                "Minimum time between messages",
-                                fontFamily = BitchatFontFamily,
-                                fontSize = 11.sp,
-                                color = colorScheme.onSurface.copy(alpha = 0.5f)
-                            )
-                        }
-                    }
-                }
-
-                item {
-                    VlmApiUsageInfo()
-                }
+            InsetGroup {
+                GroupToggleRow(
+                    title = "Accept camera alerts",
+                    subtitle = "Open the local API to the camera pipeline",
+                    checked = enabled,
+                    onCheckedChange = { enabled = it; VlmSettingsManager.setEnabled(it) },
+                    icon = Icons.Rounded.Videocam,
+                    iconTint = AppleColors.BlueLight,
+                )
+                GroupDivider(inset = 58.dp)
+                GroupToggleRow(
+                    title = "Silence",
+                    subtitle = "Pause all camera messages",
+                    checked = silenceEnabled,
+                    onCheckedChange = { silenceEnabled = it; VlmSettingsManager.setSilenceEnabled(it) },
+                    icon = Icons.Rounded.NotificationsOff,
+                    iconTint = AppleColors.IndigoLight,
+                )
             }
+
+            InsetGroup(
+                header = "Connection",
+                footer = "Over USB: adb forward tcp:$httpPort tcp:$httpPort",
+            ) {
+                GroupFieldRow(
+                    label = "Port", value = httpPort,
+                    onValueChange = { p ->
+                        httpPort = p.filter { it.isDigit() }.take(5)
+                        httpPort.toIntOrNull()?.let { VlmSettingsManager.setHttpPort(it) }
+                    },
+                    placeholder = "8765",
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                )
+                GroupDivider()
+                GroupFieldRow(
+                    label = "Rate limit", value = rateLimit,
+                    onValueChange = { l ->
+                        rateLimit = l.filter { it.isDigit() }.take(7)
+                        rateLimit.toLongOrNull()?.let { VlmSettingsManager.setRateLimitMs(it) }
+                    },
+                    placeholder = "5000 ms",
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                )
+            }
+
+            InsetGroup(
+                header = "Default destination",
+                footer = "Messages that name no destination go here. Leave empty to broadcast.",
+            ) {
+                Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                    val idx = when (defaultDestType) { "peer" -> 1; "channel" -> 2; else -> 0 }
+                    SegmentedControl(
+                        options = listOf("Broadcast", "Person", "Channel"),
+                        selectedIndex = idx,
+                        onSelect = { i ->
+                            saved = false
+                            defaultDestType = when (i) { 1 -> "peer"; 2 -> "channel"; else -> "" }
+                        },
+                    )
+                }
+                if (defaultDestType.isNotBlank()) {
+                    GroupDivider()
+                    GroupFieldRow(
+                        label = if (defaultDestType == "peer") "Peer id" else "Channel",
+                        value = defaultDestId,
+                        onValueChange = { defaultDestId = it.trim(); saved = false },
+                        placeholder = if (defaultDestType == "peer") "Peer id" else "#channel",
+                        keyboardOptions = KeyboardOptions(autoCorrectEnabled = false),
+                    )
+                }
+                GroupDivider()
+                GroupRow(
+                    title = if (saved) "Saved" else "Save destination",
+                    accent = !saved,
+                    enabled = defaultDestType.isBlank() || defaultDestId.isNotBlank(),
+                    onClick = {
+                        if (defaultDestType.isNotBlank() && defaultDestId.isNotBlank()) {
+                            VlmSettingsManager.setDefaultDestination(VlmDestination(defaultDestType, defaultDestId))
+                        } else if (defaultDestType.isBlank()) {
+                            VlmSettingsManager.setDefaultDestination(null)
+                        }
+                        saved = true
+                    },
+                )
+            }
+
+            VlmApiUsageInfo()
+            Spacer(Modifier.height(8.dp))
         }
     }
 }
 
 @Composable
 private fun VlmStatusSection(enabled: Boolean) {
-    val colorScheme = MaterialTheme.colorScheme
     val context = LocalContext.current
-
-    val status by remember(enabled) {
-        mutableStateOf(VlmMessageHandler.getStatus(context))
-    }
-    
+    val palette = LocalBitchatPalette.current
+    val status by remember(enabled) { mutableStateOf(VlmMessageHandler.getStatus(context)) }
     val wifiIp = status["wifi_ip"] as? String ?: "0.0.0.0"
     val hasValidWifi = wifiIp != "0.0.0.0"
 
-    Surface(
-        shape = RoundedCornerShape(12.dp),
-        color = if (enabled && hasValidWifi) Color(0xFF34C759).copy(alpha = 0.15f)
-                else colorScheme.surfaceVariant.copy(alpha = 0.2f)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(12.dp)
-                        .padding(2.dp)
-                ) {
-                    Surface(
-                        shape = androidx.compose.foundation.shape.CircleShape,
-                        color = if (enabled && hasValidWifi) Color(0xFF34C759)
-                                else Color(0xFF8E8E93),
-                        modifier = Modifier.fillMaxSize()
-                    ) {}
-                }
-                Text(
-                    when {
-                        !enabled -> "VLM API Disabled"
-                        !hasValidWifi -> "VLM API Active (No WiFi)"
-                        else -> "VLM API Active"
-                    },
-                    fontFamily = BitchatFontFamily,
-                    fontWeight = FontWeight.Bold,
-                    color = if (enabled && hasValidWifi) Color(0xFF34C759)
-                            else colorScheme.onSurface
-                )
-            }
-            
+    InsetGroup(header = "Status") {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            StatusPill(
+                text = when {
+                    !enabled -> "Off"
+                    !hasValidWifi -> "On · no Wi-Fi"
+                    else -> "On · ${status["peers_count"] ?: 0} peers"
+                },
+                dotColor = when {
+                    !enabled -> Color(0xFF8E8E93)
+                    !hasValidWifi -> AppleColors.OrangeLight
+                    else -> palette.positive
+                },
+            )
             if (enabled && hasValidWifi) {
-                Spacer(modifier = Modifier.height(12.dp))
-                
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = Color(0xFF34C759).copy(alpha = 0.1f)
-                ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Text(
-                            "Connect from PC:",
-                            fontFamily = BitchatFontFamily,
-                            fontSize = 11.sp,
-                            color = colorScheme.onSurface.copy(alpha = 0.6f)
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            "http://$wifiIp:${status["http_port"]}",
-                            fontFamily = BitchatFontFamily,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF34C759)
-                        )
-                    }
-                }
-                
-                Spacer(modifier = Modifier.height(8.dp))
-                
+                Text("Address for the camera computer", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(
-                    "Peers: ${status["peers_count"]}",
-                    fontFamily = BitchatFontFamily,
-                    fontSize = 12.sp,
-                    color = colorScheme.onSurface.copy(alpha = 0.7f)
+                    "http://$wifiIp:${status["http_port"]}",
+                    style = MaterialTheme.typography.bodyLarge.copy(fontFamily = BitchatMonoFamily),
+                    color = MaterialTheme.colorScheme.onSurface,
                 )
-            } else if (enabled && !hasValidWifi) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    "Connect to WiFi to expose API",
-                    fontFamily = BitchatFontFamily,
-                    fontSize = 12.sp,
-                    color = Color(0xFFFF9500),
-                    fontWeight = FontWeight.Medium
-                )
+            } else if (enabled) {
+                Text("Join a Wi-Fi network to reach the camera computer.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }
@@ -353,53 +217,17 @@ private fun VlmStatusSection(enabled: Boolean) {
 
 @Composable
 private fun VlmApiUsageInfo() {
-    val colorScheme = MaterialTheme.colorScheme
-
-    Surface(
-        shape = RoundedCornerShape(12.dp),
-        color = colorScheme.surfaceVariant.copy(alpha = 0.2f)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                "API Usage",
-                fontFamily = BitchatFontFamily,
-                fontWeight = FontWeight.Bold,
-                fontSize = 14.sp
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-
-            val endpoints = listOf(
-                "POST /send/text" to "Send text message",
-                "POST /send/image" to "Send image (multipart)",
-                "POST /send/analysis" to "Send image + description",
-                "GET /status" to "Get API status",
-                "POST /silence" to "Toggle silence mode"
-            )
-
-            endpoints.forEach { (endpoint, desc) ->
-                Text(
-                    endpoint,
-                    fontFamily = BitchatFontFamily,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = Color(0xFF5856D6)
-                )
-                Text(
-                    "   $desc",
-                    fontFamily = BitchatFontFamily,
-                    fontSize = 11.sp,
-                    color = colorScheme.onSurface.copy(alpha = 0.6f)
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-            Text(
-                "Broadcast Intent: com.bitchat.android.VLM_API",
-                fontFamily = BitchatFontFamily,
-                fontSize = 10.sp,
-                color = colorScheme.onSurface.copy(alpha = 0.5f)
-            )
+    val endpoints = listOf(
+        "POST /send/text" to "Send a text alert",
+        "POST /send/image" to "Send an image (multipart)",
+        "POST /send/analysis" to "Send image + description",
+        "GET /status" to "API status",
+        "POST /silence" to "Toggle silence",
+    )
+    InsetGroup(header = "API", footer = "Broadcast intent: com.bitchat.android.VLM_API") {
+        endpoints.forEachIndexed { i, (endpoint, desc) ->
+            if (i > 0) GroupDivider()
+            GroupRow(title = desc, value = endpoint)
         }
     }
 }

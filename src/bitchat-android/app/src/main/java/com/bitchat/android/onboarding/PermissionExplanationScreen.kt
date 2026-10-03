@@ -9,6 +9,7 @@ import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -37,179 +38,72 @@ fun PermissionExplanationScreen(
     onContinue: () -> Unit
 ) {
     val colorScheme = MaterialTheme.colorScheme
+    val palette = com.bitchat.android.ui.theme.LocalBitchatPalette.current
     val scrollState = rememberScrollState()
 
-    Box(
-        modifier = modifier
-    ) {
-        // Scrollable content
+    Box(modifier = modifier.background(palette.groupedBackground)) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 24.dp)
-                .padding(bottom = 88.dp) // Leave space for the fixed button
+                .padding(bottom = 96.dp) // room for the fixed button
                 .verticalScroll(scrollState),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Spacer(modifier = Modifier.height(24.dp))
-            
-            // Header Section - matching AboutSheet style
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.Bottom,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(
-                        text = stringResource(R.string.app_name),
-                        style = MaterialTheme.typography.headlineLarge.copy(
-                            fontFamily = BitchatFontFamily,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 32.sp
-                        ),
-                        color = colorScheme.onBackground
+            Spacer(modifier = Modifier.height(32.dp))
+            com.bitchat.android.ui.design.LargeTitle(
+                title = stringResource(R.string.app_name),
+                subtitle = stringResource(R.string.about_tagline),
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+
+            com.bitchat.android.ui.design.InsetGroup(header = stringResource(R.string.privacy_protected)) {
+                com.bitchat.android.ui.design.GroupRow(
+                    title = stringResource(R.string.privacy_bullets),
+                    icon = Icons.Filled.Security,
+                    iconTint = com.bitchat.android.ui.theme.AppleColors.GreenLight,
+                )
+            }
+
+            com.bitchat.android.ui.design.InsetGroup(header = stringResource(R.string.permissions_header)) {
+                permissionCategories.forEachIndexed { i, category ->
+                    if (i > 0) com.bitchat.android.ui.design.GroupDivider(inset = 58.dp)
+                    com.bitchat.android.ui.design.GroupRow(
+                        title = category.type.nameValue,
+                        subtitle = category.description,
+                        icon = getPermissionIcon(category.type),
+                        iconTint = permissionTint(category.type),
                     )
                 }
-
-                Text(
-                    text = stringResource(R.string.about_tagline),
-                    fontSize = 12.sp,
-                    fontFamily = BitchatFontFamily,
-                    color = colorScheme.onBackground.copy(alpha = 0.7f)
-                )
             }
-
-            // Privacy assurance section - matching AboutSheet card style
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                color = colorScheme.surfaceVariant.copy(alpha = 0.25f),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.Top,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Security,
-                            contentDescription = stringResource(R.string.cd_privacy_protected),
-                            tint = colorScheme.primary,
-                            modifier = Modifier
-                                .padding(top = 2.dp)
-                                .size(20.dp)
-                        )
-                        Column {
-                            Text(
-                                text = stringResource(R.string.privacy_protected),
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Medium,
-                                color = colorScheme.onBackground
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = stringResource(R.string.privacy_bullets),
-                                style = MaterialTheme.typography.bodySmall,
-                                fontFamily = BitchatFontFamily,
-                                color = colorScheme.onBackground.copy(alpha = 0.8f)
-                            )
-                        }
-                    }
-                }
-            }
-
-            // Section header
-            Text(
-                text = stringResource(R.string.permissions_header),
-                style = MaterialTheme.typography.labelLarge,
-                color = colorScheme.onBackground.copy(alpha = 0.7f),
-                modifier = Modifier.padding(top = 8.dp, bottom = 8.dp)
-            )
-
-            // Permission categories
-            permissionCategories.forEach { category ->
-                PermissionCategoryCard(
-                    category = category,
-                    colorScheme = colorScheme
-                )
-            }
-
             Spacer(modifier = Modifier.height(24.dp))
         }
 
-        // Fixed button at bottom
-        Surface(
+        // Fixed button on a translucent bar, as on iOS.
+        Box(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .fillMaxWidth(),
-            color = colorScheme.surface,
-            shadowElevation = 8.dp
+                .fillMaxWidth()
+                .background(palette.barMaterial)
+                .navigationBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 16.dp)
         ) {
-            Button(
+            com.bitchat.android.ui.design.AppleButton(
+                text = stringResource(R.string.grant_permissions),
                 onClick = onContinue,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp, vertical = 16.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = colorScheme.primary
-                )
-            ) {
-                Text(
-                    text = stringResource(R.string.grant_permissions),
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        fontFamily = BitchatFontFamily,
-                        fontWeight = FontWeight.Bold
-                    ),
-                    modifier = Modifier.padding(vertical = 4.dp)
-                )
-            }
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
     }
 }
 
-@Composable
-private fun PermissionCategoryCard(
-    category: PermissionCategory,
-    colorScheme: ColorScheme
-) {
-    Row(
-        verticalAlignment = Alignment.Top,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp)
-    ) {
-        Icon(
-            imageVector = getPermissionIcon(category.type),
-            contentDescription = category.type.nameValue,
-            tint = colorScheme.primary,
-            modifier = Modifier
-                .padding(top = 2.dp)
-                .size(20.dp)
-        )
-        Spacer(modifier = Modifier.width(16.dp))
-        Column {
-            Text(
-                text = category.type.nameValue,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Medium,
-                color = colorScheme.onBackground
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = category.description,
-                style = MaterialTheme.typography.bodySmall,
-                color = colorScheme.onBackground.copy(alpha = 0.8f)
-            )
-
-        }
-    }
+/** One calm colour per permission, as in iOS Settings. Red is never used here. */
+private fun permissionTint(type: PermissionType): androidx.compose.ui.graphics.Color = when (type) {
+    PermissionType.NEARBY_DEVICES, PermissionType.WIFI_AWARE -> com.bitchat.android.ui.theme.AppleColors.BlueLight
+    PermissionType.PRECISE_LOCATION, PermissionType.BACKGROUND_LOCATION -> com.bitchat.android.ui.theme.AppleColors.GreenLight
+    PermissionType.MICROPHONE -> com.bitchat.android.ui.theme.AppleColors.OrangeLight
+    PermissionType.NOTIFICATIONS -> com.bitchat.android.ui.theme.AppleColors.IndigoLight
+    PermissionType.BATTERY_OPTIMIZATION -> com.bitchat.android.ui.theme.AppleColors.TealLight
+    PermissionType.OTHER -> androidx.compose.ui.graphics.Color(0xFF8E8E93)
 }
 
 private fun getPermissionIcon(permissionType: PermissionType): ImageVector {
