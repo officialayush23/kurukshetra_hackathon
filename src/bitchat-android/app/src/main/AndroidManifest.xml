@@ -48,6 +48,8 @@
     
     <!-- Microphone for voice notes -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- WebView audio capture (voice reports in the online app) needs this as well. -->
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <!-- Camera for QR verification -->
     <uses-permission android:name="android.permission.CAMERA" />
 
