@@ -111,7 +111,8 @@ fun buildMapEntities(
         val kind = when (s.role) {
             Role.AMBULANCE -> MapEntityKind.AMBULANCE
             Role.FIRE -> MapEntityKind.FIRE
-            Role.GOV -> MapEntityKind.GOV
+            // The control room's own centres sit with the authorities.
+            Role.GOV, Role.COMMAND -> MapEntityKind.GOV
             Role.CIVILIAN -> MapEntityKind.SOS
             Role.UNSET -> MapEntityKind.SHELTER
         }
@@ -254,6 +255,7 @@ fun roleActorLabel(role: Role): String? = when (role) {
     Role.AMBULANCE -> "Ambulance"
     Role.FIRE -> "Fire"
     Role.GOV -> "Gov"
+    Role.COMMAND -> "Command"
     Role.CIVILIAN -> "You"
     Role.UNSET -> null
 }
