@@ -3,6 +3,15 @@
    <configuration>
       <verify-metadata>true</verify-metadata>
       <verify-signatures>false</verify-signatures>
+      <!-- Sources, javadoc and the Gradle source zip are fetched only by the IDE when it
+           syncs (for navigation and docs); they never reach the APK. Trusting them by
+           name keeps Android Studio sync working without listing hundreds of checksums,
+           while every artifact the build actually uses is still verified below. -->
+      <trusted-artifacts>
+         <trust file=".*-javadoc[.]jar" regex="true"/>
+         <trust file=".*-sources[.]jar" regex="true"/>
+         <trust file="gradle-[0-9.]+-src[.]zip" regex="true"/>
+      </trusted-artifacts>
    </configuration>
    <components>
       <component group="androidx.activity" name="activity" version="1.13.0">
