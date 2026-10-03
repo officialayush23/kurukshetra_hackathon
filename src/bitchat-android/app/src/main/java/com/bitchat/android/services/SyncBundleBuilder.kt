@@ -26,7 +26,12 @@ object SyncBundleBuilder {
 
     private val gson = GsonBuilder().disableHtmlEscaping().create()
 
-    fun build(shelters: List<AppStateStore.VerifiedShelter>, incidents: List<BitchatIncident>): Bundle {
+    fun build(
+        shelters: List<AppStateStore.VerifiedShelter>,
+        incidents: List<BitchatIncident>,
+        gatewayId: String? = null,
+        cityId: String? = null
+    ): Bundle {
         val incidentsJson = incidents.map { inc ->
             JsonObject().apply {
                 addProperty("id", inc.id)
@@ -36,6 +41,9 @@ object SyncBundleBuilder {
                 addProperty("lat", inc.lat)
                 addProperty("lon", inc.lon)
                 addProperty("content", inc.content)
+                addProperty("source", inc.source)
+                inc.kind?.let { addProperty("kind", it) }
+                addProperty("geotagged", inc.geotagged)
             }
         }
         val sheltersJson = shelters.map { vs ->
@@ -56,6 +64,8 @@ object SyncBundleBuilder {
         val root = JsonObject().apply {
             addProperty("bundle_schema", "bitchat.civ.sync/v1")
             addProperty("produced_at", System.currentTimeMillis())
+            gatewayId?.let { addProperty("gateway_id", it) }
+            cityId?.let { addProperty("city_id", it) }
             add("incidents", gson.toJsonTree(incidentsJson))
             add("shelters", gson.toJsonTree(sheltersJson))
         }
@@ -69,18 +79,59 @@ object SyncBundleBuilder {
         )
     }
 
-    fun extractIncidents(messages: List<com.bitchat.android.model.BitchatMessage>): List<BitchatIncident> {
+    /**
+     * Every public broadcast worth reporting: SOS, geotagged posts and VLM camera briefs.
+     * A message without a `geo:` tag uses [fallback] (this phone's last fix) so a VLM brief
+     * or a plain "help, water rising" still lands on the command centre's map; with no
+     * fallback it is kept only when geotagged. Command-centre traffic is never echoed back.
+     */
+    fun extractIncidents(
+        messages: List<com.bitchat.android.model.BitchatMessage>,
+        fallback: Pair<Double, Double>? = null,
+        exclude: Set<String> = emptySet()
+    ): List<BitchatIncident> {
         return messages.mapNotNull { msg ->
-            val geo = parseGeoTag(msg.content) ?: return@mapNotNull null
+            if (msg.id in exclude) return@mapNotNull null
+            if (msg.category == com.bitchat.android.model.Role.COMMAND) return@mapNotNull null
+            if (msg.type != com.bitchat.android.model.BitchatMessageType.Message) return@mapNotNull null
+            val text = msg.content.trim()
+            if (text.isEmpty() || text == "[Image]") return@mapNotNull null
+            if (OUTBOUND_IDX1.containsMatchIn(text)) return@mapNotNull null
+            val geo = parseGeoTag(text)
+            val at = geo ?: fallback ?: return@mapNotNull null
+            val isVlm = msg.id.startsWith("vlm-")
             BitchatIncident(
                 id = msg.id,
                 timestamp = msg.timestamp.time,
                 sender = msg.sender,
                 role = msg.category,
-                lat = geo.first,
-                lon = geo.second,
-                content = msg.content.take(280)
+                lat = at.first,
+                lon = at.second,
+                content = text.take(280),
+                source = if (isVlm) "vlm" else "mesh",
+                kind = if (isVlm) hazardKind(text) else null,
+                geotagged = geo != null
             )
+        }.distinctBy { it.sender + "\u0000" + it.content.replace(Regex("\\s*geo:\\S+"), "") }
+    }
+
+    /**
+     * IDX1 packets travel their own way: inbound ones through the gateway queue
+     * (IndradhanuGateway), outbound ones came from the control room in the first place.
+     */
+    private val OUTBOUND_IDX1 = Regex("IDX1\\|[A-Z]\\|")
+
+    /** ARGUS VLM classes, read off the brief's words. */
+    fun hazardKind(text: String): String? {
+        val t = text.lowercase()
+        return when {
+            listOf("fire", "flame", "burning", "blaze").any { it in t } -> "fire"
+            "smoke" in t -> "smoke"
+            listOf("flood", "waterlog", "submerged", "inundat").any { it in t } -> "flood"
+            listOf("collapse", "rubble", "debris", "earthquake").any { it in t } -> "collapse"
+            listOf("injur", "unconscious", "bleeding", "medical", "casualt").any { it in t } -> "medical"
+            listOf("assault", "fight", "violence", "attack").any { it in t } -> "assault"
+            else -> null
         }
     }
 }
@@ -92,5 +143,8 @@ data class BitchatIncident(
     val role: Role,
     val lat: Double,
     val lon: Double,
-    val content: String
+    val content: String,
+    val source: String = "mesh",
+    val kind: String? = null,
+    val geotagged: Boolean = true
 )

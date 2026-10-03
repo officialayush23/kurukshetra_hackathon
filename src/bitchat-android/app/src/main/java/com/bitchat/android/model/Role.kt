@@ -18,7 +18,9 @@ enum class Role(val value: UByte) : Parcelable {
     CIVILIAN(0x01u),
     AMBULANCE(0x02u),
     FIRE(0x03u),
-    GOV(0x04u);
+    GOV(0x04u),
+    /** The control room (DisruptionOps / Indradhanu) speaking through a gateway phone. */
+    COMMAND(0x05u);
 
     companion object {
         fun fromValue(value: UByte): Role =
@@ -31,6 +33,13 @@ enum class Role(val value: UByte) : Parcelable {
             AMBULANCE -> "Ambulance"
             FIRE -> "Fire"
             GOV -> "Gov"
+            COMMAND -> "Command"
         }
+
+        /** Order of the alert filter chips: command centre first, then responders. */
+        val filterOrder: List<Role> = listOf(COMMAND, AMBULANCE, FIRE, GOV, CIVILIAN)
+
+        /** Roles whose shelters/centres are shown as verified. */
+        fun isAuthority(role: Role): Boolean = role == GOV || role == COMMAND
     }
 }

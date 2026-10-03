@@ -110,6 +110,9 @@ class MeshForegroundService : Service() {
 
         VlmSettingsManager.initialize(applicationContext)
         startVlmApiServiceIfNeeded()
+        // Command centre link: push when online, listen for alerts, cache centres + routes.
+        // Idle until the Civilization Bridge sheet has sync on and a URL set.
+        try { com.bitchat.android.vlm.IndradhanuGateway.initialize(applicationContext) } catch (_: Exception) { }
 
         // Civilization bridge: monitor real internet connectivity and schedule an
         // incident/shelter flush whenever it returns. Disabled by default — the
@@ -122,6 +125,7 @@ class MeshForegroundService : Service() {
                     .collect { online ->
                         if (online) {
                             com.bitchat.android.util.SyncWorkScheduler.scheduleFlush(applicationContext)
+                            try { com.bitchat.android.vlm.IndradhanuGateway.kick() } catch (_: Exception) { }
                             refreshLocalIngest()
                         }
                     }

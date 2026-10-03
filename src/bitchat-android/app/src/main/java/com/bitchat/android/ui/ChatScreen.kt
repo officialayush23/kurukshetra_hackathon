@@ -306,12 +306,7 @@ if (isMeshTimeline) {
                   }
                   RoleFilterRow(
                       selectedRoles = subscribedRoles,
-                      availableRoles = setOf(
-                          com.bitchat.android.model.Role.CIVILIAN,
-                          com.bitchat.android.model.Role.AMBULANCE,
-                          com.bitchat.android.model.Role.FIRE,
-                          com.bitchat.android.model.Role.GOV
-                      ),
+                      availableRoles = com.bitchat.android.model.Role.filterOrder.toSet(),
                       onToggle = viewModel::toggleSubscribedRole,
                       onClearAll = viewModel::clearSubscribedRoles
                   )

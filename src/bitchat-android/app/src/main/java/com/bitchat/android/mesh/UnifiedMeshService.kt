@@ -390,6 +390,9 @@ class UnifiedMeshService(
     }
 
     override fun didReceiveMessage(message: BitchatMessage) {
+        // Command centre link: keep IDX1 packets for the local inbox and the
+        // store-and-forward queue. Never allowed to break normal delivery.
+        try { com.bitchat.android.vlm.IndradhanuGateway.onMessage(message) } catch (_: Exception) { }
         delegate?.didReceiveMessage(message)
     }
 

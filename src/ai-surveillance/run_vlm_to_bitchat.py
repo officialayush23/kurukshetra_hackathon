@@ -105,6 +105,16 @@ if bitchat_client is None:
     print("[bitchat] ERROR: Bitchat client not configured. Check pipeline.yaml")
     sys.exit(1)
 
+# Hazards the VLM names (fire, smoke, flood, collapse, injury, fight) also go to
+# the phone as a structured IDX1 packet, so the control room files a located
+# report instead of reading free text. Phone first; the API is only a fallback.
+indradhanu = None
+try:
+    from core.indradhanu_bridge import build_bridge
+    indradhanu = build_bridge(cfg, bitchat_client)
+except Exception as _ix_e:
+    print(f"[indradhanu] WARN: bridge not started: {_ix_e}")
+
 
 def run_prompt(frame_bgr: np.ndarray, prompt: str) -> str:
     frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
@@ -179,7 +189,9 @@ def _vlm_thread_fn(frame_snap: np.ndarray) -> None:
         
         print(f"[bitchat] Sending scene: {scene[:80]}...")
         bitchat_client.send_scene(scene, frame_snap)
-        
+        if indradhanu is not None:
+            indradhanu.offer_scene(scene)
+
     except Exception as e:
         print(f"[vlm] ERROR: {e}")
         import traceback
@@ -249,6 +261,24 @@ def draw_overlay(vis: np.ndarray, scene: str, entities: str, running: bool) -> N
             pass
 
 
+# --- VLM node: other machines on this network reach this laptop by IP -------
+# GET /health, POST /analyze (image or current frame), POST /phone {ip}.
+# Port from VLM_NODE_PORT (default 8780); set VLM_NODE_PORT=0 to switch it off.
+_latest_frame: list = [None]
+_node_port = int(os.environ.get("VLM_NODE_PORT", "8780"))
+if _node_port:
+    try:
+        from core.vlm_node_server import VLMNode
+        VLMNode(
+            analyze=vlm_inference,
+            latest_frame=lambda: None if _latest_frame[0] is None else _latest_frame[0].copy(),
+            bitchat_client=bitchat_client,
+            info={"model": MODEL_ID, "device": DEVICE, "script": "run_vlm_to_bitchat.py"},
+            port=_node_port,
+        ).start()
+    except Exception as _node_e:
+        print(f"[vlm-node] WARN: not started: {_node_e}")
+
 print(f"\n[cam] Opening camera {CAMERA_ID} at {CAPTURE_W}x{CAPTURE_H} ...")
 cap = cv2.VideoCapture(CAMERA_ID)
 cap.set(cv2.CAP_PROP_FRAME_WIDTH,  CAPTURE_W)
@@ -279,6 +309,7 @@ while True:
 
     frame_idx += 1
     fps_count  += 1
+    _latest_frame[0] = frame
     now = time.perf_counter()
     if now - fps_t0 >= 0.5:
         fps    = fps_count / (now - fps_t0)

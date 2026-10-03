@@ -76,11 +76,24 @@ object VlmMessageHandler {
         }
     }
 
+    /**
+     * Category a VLM brief is broadcast under, so the alert chips can sort it: fire and
+     * smoke go to Fire, casualties to Ambulance, collapse/flood/violence to Gov.
+     */
+    fun categoryFor(text: String): com.bitchat.android.model.Role =
+        when (com.bitchat.android.services.SyncBundleBuilder.hazardKind(text)) {
+            "fire", "smoke" -> com.bitchat.android.model.Role.FIRE
+            "medical" -> com.bitchat.android.model.Role.AMBULANCE
+            "collapse", "flood", "assault" -> com.bitchat.android.model.Role.GOV
+            else -> com.bitchat.android.model.Role.UNSET
+        }
+
     fun sendTextMessage(
         context: Context,
         text: String,
         peerId: String? = null,
-        channel: String? = null
+        channel: String? = null,
+        category: com.bitchat.android.model.Role? = null
     ): VlmResult {
         VlmSettingsManager.initialize(context)
 
@@ -130,7 +143,8 @@ object VlmMessageHandler {
                 Log.i(TAG, "Sent private message to $resolvedPeerId")
                 VlmResult.Success(messageId, null)
             } else {
-                mesh.sendMessage(text, emptyList(), resolvedChannel)
+                val cat = category ?: categoryFor(text)
+                mesh.sendMessage(text, emptyList(), resolvedChannel, cat)
                 updateLastSendTime()
                 
                 val message = BitchatMessage(
@@ -140,7 +154,8 @@ object VlmMessageHandler {
                     content = text,
                     timestamp = Date(),
                     isRelay = false,
-                    deliveryStatus = DeliveryStatus.Sent
+                    deliveryStatus = DeliveryStatus.Sent,
+                    category = cat
                 )
                 if (resolvedChannel != null) {
                     AppStateStore.addChannelMessage(resolvedChannel, message)
@@ -149,6 +164,9 @@ object VlmMessageHandler {
                 }
                 
                 Log.i(TAG, "Sent broadcast message${resolvedChannel?.let { " to channel $it" } ?: ""}")
+                // A report this phone's user sent should be forwarded by this phone too,
+                // not only by the neighbours (the mesh does not echo our own messages).
+                try { IndradhanuGateway.onLocalSend(text) } catch (_: Exception) { }
                 VlmResult.Success(messageId, null)
             }
         } catch (e: Exception) {

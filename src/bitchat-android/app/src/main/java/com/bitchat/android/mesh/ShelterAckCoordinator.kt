@@ -137,7 +137,7 @@ class ShelterAckCoordinator(
             return
         }
         val peerInfo = lookupPeerInfo(fromPeerID)
-        val verified = peerInfo != null && peerInfo.isVerifiedNickname && peerInfo.role == Role.GOV
+        val verified = peerInfo != null && peerInfo.isVerifiedNickname && Role.isAuthority(peerInfo.role)
         try {
             if (shelter.status == ShelterStatus.CLOSED && shelter.originPeerID == fromPeerID) {
                 // Soft-delete: remove the entry from the registry and AppStateStore
@@ -199,7 +199,12 @@ class ShelterAckCoordinator(
     fun gossipSheltersToPeer(peerID: String) {
         try {
             val registry = shelterRegistry ?: return
+            // Receivers drop a shelter whose origin is not the peer that sent it, so only
+            // our own records are worth sending; others reach that peer from their origin.
+            // Capped so a gateway holding the command centre's centres cannot flood BLE.
             val snapshot = registry.snapshot()
+                .filter { it.originPeerID == myPeerID && it.status != com.bitchat.android.model.ShelterStatus.CLOSED }
+                .take(40)
             for (shelter in snapshot) {
                 val payload = shelter.encode() ?: continue
                 val packet = BitchatPacket(

@@ -195,6 +195,16 @@ def run(config_path: str | None = None) -> None:
 
     router = FrameRouter(cfg.get("router", {}))
 
+    # Disaster mode (Indradhanu): identity detectors off before anything is
+    # loaded, so faces, ReID, phone use and smoking are never even computed.
+    try:
+        from core.indradhanu_bridge import apply_disaster_mode
+        _off = apply_disaster_mode(cfg)
+        if _off:
+            print(f"[indradhanu] disaster mode: switched off {', '.join(_off)}")
+    except Exception as _dm_e:
+        print(f"[indradhanu] WARN: disaster mode not applied: {_dm_e}")
+
     # Load Qwen before the other GPU-backed stages. Its safetensor loader has
     # the highest temporary host-memory peak, so loading it first avoids a
     # Windows commit/pagefile failure after detector/ReID/face initialization.
@@ -380,6 +390,17 @@ def run(config_path: str | None = None) -> None:
         print(f"[bitchat] WARN: could not initialise Bitchat client: {_bc_e}")
 
     _bc_send_scene     = cfg.get("bitchat", {}).get("send_scene", True)
+
+    # --- Indradhanu: hazards to the control room, online or over the mesh ---
+    # HTTPS /api/v1/ingest/sensor when this laptop has internet; otherwise a
+    # signed IDX1 "S" packet through the bitchat phone above. See
+    # core/indradhanu_bridge.py and the `indradhanu:` block in pipeline.yaml.
+    indradhanu = None
+    try:
+        from core.indradhanu_bridge import build_bridge
+        indradhanu = build_bridge(cfg, bitchat_client)
+    except Exception as _ix_e:
+        print(f"[indradhanu] WARN: bridge not started: {_ix_e}")
 
     source: VideoSource = build_source(src_cfg)
     source.open()
@@ -765,6 +786,14 @@ def run(config_path: str | None = None) -> None:
                     event_logger.log_event(ev, frame, frame_idx)
                 for ev in fight_events:
                     event_logger.log_event(ev, frame, frame_idx)
+
+            # --- Indradhanu: offer confirmed hazards (threshold + cooldown
+            # inside the bridge; identities and phone/smoking never leave) ---
+            if indradhanu is not None:
+                _scene = getattr(getattr(vlm_integration, "vlm_manager", None),
+                                 "_last_scene_description", None) or None
+                for ev in phase4_events + fall_events + fight_events:
+                    indradhanu.offer(ev, vlm_agreed=False, caption=_scene)
 
             # --- Bitchat mesh alerts -----------------------------------------
             # No detector event logs are sent (the user only wants the image +

@@ -18,6 +18,8 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -30,6 +32,8 @@ import com.bitchat.android.services.SyncPreferences
 import com.bitchat.android.util.SyncWorkScheduler
 import java.text.DateFormat
 import java.util.Date
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -46,14 +50,25 @@ fun SyncSettingsSheet(
     var useTor by remember { mutableStateOf(prefs.useTor) }
     var ingestEnabled by remember { mutableStateOf(prefs.localIngestEnabled) }
     var port by remember { mutableStateOf(prefs.localIngestPort.toString()) }
+    var gatewayKey by remember { mutableStateOf(prefs.gatewayKey) }
+    var cityId by remember { mutableStateOf(prefs.cityId) }
+    var listen by remember { mutableStateOf(prefs.listenToCommand) }
+    var busy by remember { mutableStateOf(false) }
+    var result by remember { mutableStateOf(com.bitchat.android.vlm.IndradhanuGateway.lastResult) }
+    // The status lines below read preferences, which Compose cannot observe. Tick once a
+    // second while the sheet is open so "Last sync" and the link line stay current.
+    var tick by remember { mutableStateOf(0) }
+    LaunchedEffect(Unit) { while (true) { delay(1000); tick++ } }
+    val scope = rememberCoroutineScope()
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
         Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-            Text("Civilization Bridge", style = MaterialTheme.typography.titleMedium)
+            Text("Command Centre Link", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(8.dp))
             Text(
-                "On internet reconnect, batch-upload your incident + shelter log to a configurable REST endpoint. " +
-                    "Disabled by default; everything you submit comes only from mesh-derived data.",
+                "When this phone has internet it pushes what the mesh heard (SOS, geotagged posts, VLM camera " +
+                    "briefs, shelters) to the command centre, broadcasts the centre's alerts and dispatches on the " +
+                    "mesh, and caches centres and walking routes for offline navigation. Off by default.",
                 style = MaterialTheme.typography.bodySmall
             )
 
@@ -67,9 +82,29 @@ fun SyncSettingsSheet(
             OutlinedTextField(
                 value = url,
                 onValueChange = { url = it; prefs.endpointUrl = it },
-                label = { Text("REST endpoint URL (HTTPS recommended)") },
+                label = { Text("Command centre API (e.g. https://api.example.com)") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
+            )
+            OutlinedTextField(
+                value = gatewayKey,
+                onValueChange = { gatewayKey = it; prefs.gatewayKey = it },
+                label = { Text("Gateway key (MESH_GATEWAY_KEY)") },
+                singleLine = true,
+                visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                modifier = Modifier.fillMaxWidth()
+            )
+            OutlinedTextField(
+                value = cityId,
+                onValueChange = { cityId = it; prefs.cityId = it },
+                label = { Text("City id") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            ToggleRow(
+                label = "Listen to command centre (broadcast its alerts on the mesh)",
+                checked = listen,
+                onCheckedChange = { listen = it; prefs.listenToCommand = it }
             )
             Spacer(Modifier.height(8.dp))
             ToggleRow(
@@ -95,15 +130,48 @@ fun SyncSettingsSheet(
             Spacer(Modifier.height(12.dp))
             val ctx = androidx.compose.ui.platform.LocalContext.current
             Button(
-                onClick = { SyncWorkScheduler.scheduleFlush(ctx) },
-                enabled = enabled && url.isNotBlank()
-            ) { Text("Send now") }
+                onClick = {
+                    busy = true
+                    result = "Contacting the command centre…"
+                    scope.launch {
+                        result = try {
+                            com.bitchat.android.vlm.IndradhanuGateway.syncNow()
+                        } catch (e: Exception) {
+                            "Sync failed: ${e.message}"
+                        }
+                        // Also queue the WorkManager flush, so a sync that failed on a
+                        // flaky network retries by itself with backoff.
+                        SyncWorkScheduler.scheduleFlush(ctx)
+                        busy = false
+                    }
+                },
+                enabled = !busy && url.isNotBlank()
+            ) { Text(if (busy) "Syncing…" else "Sync now") }
+            if (result.isNotBlank()) {
+                Text(
+                    result,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (result.startsWith("Linked")) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.error
+                )
+            }
 
             Spacer(Modifier.height(8.dp))
+            @Suppress("UNUSED_VARIABLE") val refresh = tick
             val lastAt = prefs.lastSyncedAt
             val lastStr = if (lastAt > 0) DateFormat.getDateTimeInstance().format(Date(lastAt)) else "never"
             val err = prefs.lastSyncError
             Text("Last sync: $lastStr", style = MaterialTheme.typography.bodySmall)
+            val link = try { com.bitchat.android.vlm.IndradhanuGateway.settingsJson() } catch (_: Exception) { emptyMap() }
+            fun ago(key: String): String {
+                val t = (link[key] as? Long) ?: 0L
+                return if (t > 0) DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(t)) else "never"
+            }
+            Text(
+                "Gateway ${link["gateway_id"] ?: ""} · online ${link["online"] ?: false} · queued ${link["queued"] ?: 0}\n" +
+                    "Alerts pulled: ${ago("last_pull_ok_ms")} · Centres cached: ${ago("last_places_ok_ms")}",
+                style = MaterialTheme.typography.bodySmall
+            )
             if (!err.isNullOrBlank()) {
                 Text("Last error: $err", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
             }

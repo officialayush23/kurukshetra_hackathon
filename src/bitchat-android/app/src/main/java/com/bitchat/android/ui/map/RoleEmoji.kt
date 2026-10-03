@@ -17,6 +17,7 @@ fun roleEmoji(role: Role): String = when (role) {
     Role.AMBULANCE -> "🚑"
     Role.FIRE -> "🚒"
     Role.GOV -> "🏛"
+    Role.COMMAND -> "🛰"
     Role.CIVILIAN -> "🆘"
     Role.UNSET -> "📍"
 }
@@ -26,6 +27,7 @@ fun roleAccentArgb(role: Role): Int = when (role) {
     Role.AMBULANCE -> 0xFFE53935.toInt()
     Role.FIRE -> 0xFFFB8C00.toInt()
     Role.GOV -> 0xFF1E88E5.toInt()
+    Role.COMMAND -> 0xFF8E24AA.toInt()
     Role.CIVILIAN -> 0xFFD81B60.toInt()
     Role.UNSET -> 0xFF607D8B.toInt()
 }

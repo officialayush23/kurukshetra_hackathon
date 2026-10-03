@@ -545,10 +545,10 @@ class ChatViewModel(
                     // empty ("All"), otherwise pass messages whose category matches a subscribed
                     // role or whose category is UNSET (legacy / no role declared). Channel
                     // messages are routed through their own state and never filtered here.
+                    // Selecting chips is a sort by who is speaking: only those
+                    // categories are shown ("All" clears the selection).
                     if (subs.isEmpty()) msgs else msgs.filter { msg ->
-                        msg.channel != null ||
-                            msg.category == com.bitchat.android.model.Role.UNSET ||
-                            msg.category in subs
+                        msg.channel != null || msg.category in subs
                     }
                 }
                 .collect { msgs ->
@@ -682,6 +682,8 @@ class ChatViewModel(
         try { meshService.subscribedRolesProvider = subscribedRolesThunk } catch (_: Exception) { }
         try { com.bitchat.android.wifiaware.WifiAwareController.getService()?.roleProvider = roleThunk } catch (_: Exception) { }
         try { com.bitchat.android.wifiaware.WifiAwareController.getService()?.subscribedRolesProvider = subscribedRolesThunk } catch (_: Exception) { }
+        // Command centre link (idempotent; the foreground service starts it too).
+        try { com.bitchat.android.vlm.IndradhanuGateway.initialize(getApplication()) } catch (_: Exception) { }
 
         // Load data
         val (joinedChannels, protectedChannels) = channelManager.loadChannelData()

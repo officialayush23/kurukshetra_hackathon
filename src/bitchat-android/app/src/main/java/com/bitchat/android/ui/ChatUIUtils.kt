@@ -210,7 +210,7 @@ fun formatTextMessageBody(
 
     appendIOSFormattedContent(
         builder = builder,
-        content = message.content,
+        content = stripMachinePacket(message.content),
         currentUserNickname = currentUserNickname,
         palette = palette,
         contentColor = contentColor,
@@ -626,4 +626,16 @@ private fun appendIOSFormattedContent(
         builder.append(remainingText)
         builder.pop()
     }
+}
+
+private val MACHINE_PACKET = Regex("""\s*IDX1\|[A-Z]\|\{.*\}\|([0-9a-f]{16}|-)\s*$""", RegexOption.DOT_MATCHES_ALL)
+
+/**
+ * Command-centre broadcasts carry a machine-readable IDX1 packet after the human text
+ * (other gateways and the Indradhanu web app read it). People only need the words.
+ */
+fun stripMachinePacket(content: String): String {
+    if (!content.contains("IDX1|")) return content
+    val stripped = MACHINE_PACKET.replace(content, "").trimEnd()
+    return stripped.ifEmpty { content }
 }

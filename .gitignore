@@ -3,6 +3,8 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.so
+# ...but bitchat needs its bundled Tor (Arti) native libraries in the repo
+!src/bitchat-android/app/src/main/jniLibs/**/*.so
 .Python
 build/
 dist/

@@ -130,7 +130,7 @@ fun ShelterSheet(
         androidx.compose.runtime.LaunchedEffect(Unit) { fillLocation() }
     }
 
-    val isResponder = localRole == Role.AMBULANCE || localRole == Role.FIRE || localRole == Role.GOV
+    val isResponder = localRole == Role.AMBULANCE || localRole == Role.FIRE || localRole == Role.GOV || localRole == Role.COMMAND
     var selectedRole by remember(isResponder) { mutableStateOf(if (isResponder) localRole else Role.CIVILIAN) }
     val roleChoices = if (isResponder) listOf(localRole) else listOf(Role.CIVILIAN)
     var status by remember { mutableStateOf(ShelterStatus.OPEN) }

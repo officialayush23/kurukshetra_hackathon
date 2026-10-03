@@ -156,6 +156,11 @@ class VlmApiService(
                 method == Method.POST && uri == "/send/image" -> handleSendImage(session)
                 method == Method.POST && uri == "/send/analysis" -> handleSendAnalysis(session)
                 method == Method.POST && uri == "/silence" -> handleSetSilence(session)
+                // Command centre link: read what the mesh delivered, and configure the link.
+                method == Method.GET && uri == "/inbox" -> handleInbox(session)
+                method == Method.GET && uri == "/gateway" -> jsonResponse(
+                    Response.Status.OK, mapOf("status" to "ok") + IndradhanuGateway.settingsJson())
+                method == Method.POST && uri == "/gateway" -> handleGateway(session)
                 method == Method.OPTIONS -> handleCorsPreflight()
                 else -> jsonResponse(Response.Status.NOT_FOUND, mapOf(
                     "status" to "error",
@@ -238,8 +243,16 @@ class VlmApiService(
 
         val peerId = if (json.has("peer_id") && !json.isNull("peer_id")) json.optString("peer_id", null) else null
         val channel = if (json.has("channel") && !json.isNull("channel")) json.optString("channel", null) else null
+        // Optional: where the camera is, and an explicit category (FIRE, AMBULANCE, ...).
+        val lat = json.optDouble("lat", Double.NaN)
+        val lon = json.optDouble("lon", Double.NaN)
+        val body = if (!lat.isNaN() && !lon.isNaN() && !text.contains("geo:"))
+            text + " geo:%.5f,%.5f".format(java.util.Locale.US, lat, lon) else text
+        val category = json.optString("category", "").uppercase().takeIf { it.isNotBlank() }?.let {
+            try { com.bitchat.android.model.Role.valueOf(it) } catch (_: Exception) { null }
+        }
 
-        val result = VlmMessageHandler.sendTextMessage(context, text, peerId, channel)
+        val result = VlmMessageHandler.sendTextMessage(context, body, peerId, channel, category)
 
         return when (result) {
             is VlmResult.Success -> jsonResponse(Response.Status.OK, mapOf(
@@ -390,6 +403,50 @@ class VlmApiService(
         ))
     }
 
+    /**
+     * `GET /inbox?since=<seq>`: IDX1 packets this phone has heard, oldest first.
+     * Open while the VLM API is enabled, like every other endpoint here: it only
+     * ever returns messages that were broadcast in the clear on the mesh.
+     */
+    private fun handleInbox(session: IHTTPSession): Response {
+        if (!VlmSettingsManager.isEnabled()) {
+            return jsonResponse(Response.Status.FORBIDDEN, mapOf(
+                "status" to "error", "error" to "VLM API is disabled"))
+        }
+        val since = session.parameters["since"]?.firstOrNull()?.toLongOrNull() ?: 0L
+        val items = IndradhanuGateway.inboxSince(since)
+        val arr = org.json.JSONArray()
+        items.forEach {
+            arr.put(JSONObject()
+                .put("seq", it.seq).put("text", it.text).put("sender", it.sender)
+                .put("channel", it.channel ?: JSONObject.NULL).put("at_ms", it.atMs))
+        }
+        val body = JSONObject()
+            .put("status", "ok")
+            .put("messages", arr)
+            .put("next", items.lastOrNull()?.seq ?: since)
+            .put("latest", IndradhanuGateway.latestSeq())
+        val response = newFixedLengthResponse(Response.Status.OK, "application/json", body.toString())
+        response.addHeader("Access-Control-Allow-Origin", "*")
+        response.addHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        response.addHeader("Access-Control-Allow-Headers", "Content-Type")
+        response.addHeader("Access-Control-Allow-Private-Network", "true")
+        return response
+    }
+
+    /** `POST /gateway` {enabled, api_url, gateway_key, city_id, listen}. */
+    private fun handleGateway(session: IHTTPSession): Response {
+        if (!VlmSettingsManager.isEnabled()) {
+            return jsonResponse(Response.Status.FORBIDDEN, mapOf(
+                "status" to "error", "error" to "VLM API is disabled"))
+        }
+        val json = parseJsonBody(session) ?: return jsonResponse(
+            Response.Status.BAD_REQUEST, mapOf("status" to "error", "error" to "Invalid JSON body"))
+        IndradhanuGateway.update(json)
+        IndradhanuGateway.kick()
+        return jsonResponse(Response.Status.OK, mapOf("status" to "ok") + IndradhanuGateway.settingsJson())
+    }
+
     private fun handleCorsPreflight(): Response {
         return jsonResponse(Response.Status.OK, mapOf("status" to "ok"))
     }
@@ -428,6 +485,9 @@ class VlmApiService(
         response.addHeader("Access-Control-Allow-Origin", "*")
         response.addHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         response.addHeader("Access-Control-Allow-Headers", "Content-Type")
+        // Lets a web app served over https on this phone call this loopback API
+        // (Chrome's Private Network Access preflight).
+        response.addHeader("Access-Control-Allow-Private-Network", "true")
         return response
     }
 }

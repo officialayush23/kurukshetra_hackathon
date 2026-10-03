@@ -86,6 +86,7 @@ private fun roleAccent(role: Role, base: Color): Color = when (role) {
     Role.AMBULANCE -> Color(0xFFE53935) // red
     Role.FIRE -> Color(0xFFFB8C00)      // orange
     Role.GOV -> Color(0xFF1E88E5)      // blue
+    Role.COMMAND -> Color(0xFF8E24AA)  // purple
     Role.CIVILIAN -> Color(0xFF43A047)  // green
     Role.UNSET -> base
 }

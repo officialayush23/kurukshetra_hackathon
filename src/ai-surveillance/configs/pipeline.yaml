@@ -12,6 +12,7 @@
 bitchat:
   enabled: true             
   ip: "10.164.102.114"         # Android WiFi IP for the Bitchat VLM API
+  auto_discover: true          # if that IP does not answer, scan this Wi-Fi for the phone ("ip: auto" always scans)
   port: 8765
   # channel: "surveillance"  # Optional: uncomment to send to specific channel, otherwise uses default destination
   rate_limit_s: 5.5
@@ -151,3 +152,21 @@ perf:
   vram_log_every_s: 5   # how often to append a VRAM sample
   event_db_path: data/events.db
   keyframes_dir: data/keyframes
+
+# --- Indradhanu control room (see core/indradhanu_bridge.py) ---
+# Confirmed hazards go to the bitchat phone configured above FIRST, as a signed
+# IDX1 packet on the mesh; any phone with signal carries it to the control room.
+# `api` is only a fallback for when the phone cannot be reached.
+indradhanu:
+  enabled: true
+  prefer: mesh           # mesh = phone first | https = internet first
+  api: ""                # optional, e.g. https://disruptionops.onrender.com
+  gateway_key: ""        # MESH_GATEWAY_KEY on the API
+  hmac_key: ""           # MESH_HMAC_KEY on the API (signs mesh packets)
+  node_id: "cam_01"
+  lat: 18.5204           # where this camera is mounted
+  lon: 73.8567
+  min_confidence: 0.55
+  cooldown_s: 120
+  mesh: true
+  disaster_mode: true    # face, ReID, phone, smoking, PAR off

@@ -1188,7 +1188,7 @@ fun AboutSheet(
                                 if (onShowSyncSettings != null) {
                                     TextButton(onClick = onShowSyncSettings) {
                                         Text(
-                                            text = "Civilization Bridge",
+                                            text = "Command Centre",
                                             fontSize = 13.sp,
                                             fontFamily = BitchatFontFamily,
                                             color = colorScheme.primary
