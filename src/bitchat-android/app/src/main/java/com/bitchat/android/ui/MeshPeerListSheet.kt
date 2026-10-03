@@ -602,7 +602,7 @@ private fun ChannelRow(
                 Text(
                     text = "#",
                     fontFamily = BitchatFontFamily,
-                    fontSize = 14.sp,
+                    fontSize = 16.sp,
                     fontWeight = FontWeight.Medium,
                     color = palette.textTertiary
                 )
@@ -614,7 +614,7 @@ private fun ChannelRow(
         Text(
             text = channel,
             fontFamily = BitchatFontFamily,
-            fontSize = 14.sp,
+            fontSize = 16.sp,
             color = if (isSelected) colorScheme.primary else colorScheme.onSurface,
             fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
             modifier = Modifier.weight(1f),
@@ -669,7 +669,7 @@ fun PeopleSection(
                     Text(
                         text = stringResource(id = R.string.no_one_connected),
                         fontFamily = BitchatFontFamily,
-                        fontSize = 12.sp,
+                        fontSize = 13.sp,
                         color = palette.textTertiary,
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1300,7 +1300,9 @@ private fun ConversationRow(
                             FontWeight.Medium
                         }
                     ),
-                    color = assignedColor,
+                    // Names read in the primary text colour, as in Messages; the peer's colour
+                    // stays on the avatar where it identifies without costing contrast.
+                    color = colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -1311,7 +1313,7 @@ private fun ConversationRow(
                             fontFamily = BitchatFontFamily,
                             fontWeight = FontWeight.Medium
                         ),
-                        color = assignedColor.copy(alpha = SUFFIX_ALPHA)
+                        color = colorScheme.onSurfaceVariant
                     )
                 }
                 if (conversation.isPinned) {
@@ -1348,7 +1350,7 @@ private fun ConversationRow(
                     color = if (!conversation.draft.isNullOrBlank()) {
                         palette.accentOrange
                     } else {
-                        palette.textTertiary
+                        colorScheme.onSurfaceVariant
                     },
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -1548,9 +1550,9 @@ private fun PeerItem(
             Text(
                 text = baseName,
                 fontFamily = BitchatFontFamily,
-                fontSize = 14.sp,
-                fontWeight = if (isMe) FontWeight.Bold else FontWeight.Medium,
-                color = baseColor,
+                fontSize = 16.sp,
+                fontWeight = if (isMe) FontWeight.SemiBold else FontWeight.Normal,
+                color = colorScheme.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -1559,9 +1561,9 @@ private fun PeerItem(
                 Text(
                     text = suffix,
                     fontFamily = BitchatFontFamily,
-                    fontSize = 14.sp,
-                    fontWeight = if (isMe) FontWeight.Bold else FontWeight.Medium,
-                    color = baseColor.copy(alpha = SUFFIX_ALPHA)
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Normal,
+                    color = colorScheme.onSurfaceVariant
                 )
             }
         }
@@ -1624,7 +1626,7 @@ private fun UnreadBadge(
         Box(
             modifier = Modifier
                 .background(
-                    color = palette.accentOrange,
+                    color = colorScheme.primary,
                     shape = RoundedCornerShape(10.dp)
                 )
                 .padding(horizontal = 6.dp, vertical = 2.dp)
@@ -1635,10 +1637,10 @@ private fun UnreadBadge(
                 count = count,
                 text = if (count > 99) "99+" else count.toString(),
                 style = MaterialTheme.typography.labelSmall,
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Bold,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
                 fontFamily = BitchatFontFamily,
-                color = Color.Black
+                color = Color.White
             )
         }
     }

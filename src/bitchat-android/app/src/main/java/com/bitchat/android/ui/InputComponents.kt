@@ -35,6 +35,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.rounded.LocationOn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -281,8 +282,8 @@ internal fun ComposerActionSurface(
     val scale by animateFloatAsState(
         targetValue = if (isPressed) 0.88f else 1f,
         animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessHigh
+            dampingRatio = com.bitchat.android.ui.theme.BitchatMotion.SPRING_DAMPING,
+            stiffness = com.bitchat.android.ui.theme.BitchatMotion.SPRING_STIFFNESS
         ),
         label = "composerButtonScale"
     )
@@ -572,64 +573,36 @@ fun MessageInput(
                 label = "composerActions"
             ) { showSend ->
                 if (showSend) {
-                    SendButton(
-                        isAccented = latestSelectedPeer.value != null || latestChannel.value != null,
-                        onSend = onSend
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        // On the public mesh a message can carry this phone's position, which
+                        // pins it on everyone's map. Offered next to Send, where it applies.
+                        if (showMediaButtons && selectedPrivatePeer == null && currentChannel == null) {
+                            ComposerActionSurface(
+                                isActive = false,
+                                contentDescription = "Send with my location",
+                                modifier = Modifier.clickable {
+                                    val msg = value.text.trim()
+                                    if (msg.isNotEmpty()) onSendWithGeotag(msg)
+                                }
+                            ) { tint ->
+                                Icon(
+                                    imageVector = Icons.Rounded.LocationOn,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(ComposerIconSize),
+                                    tint = tint
+                                )
+                            }
+                        }
+                        SendButton(
+                            isAccented = latestSelectedPeer.value != null || latestChannel.value != null,
+                            onSend = onSend
+                        )
+                    }
                 } else {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         if (showMediaButtons) {
-                            AnimatedVisibility(
-                                visible = !isRecording && selectedPrivatePeer == null && currentChannel == null,
-                                enter = fadeIn(tween(BitchatMotion.STANDARD_MS)) +
-                                    expandHorizontally(
-                                        tween(BitchatMotion.STANDARD_MS, easing = FastOutSlowInEasing)
-                                    ),
-                                exit = fadeOut(tween(BitchatMotion.QUICK_MS)) +
-                                    shrinkHorizontally(
-                                        tween(BitchatMotion.QUICK_MS, easing = FastOutSlowInEasing)
-                                    )
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(40.dp)
-                                            .background(MaterialTheme.colorScheme.error.copy(alpha = 0.15f), CircleShape)
-                                            .clickable {
-                                                val msg = value.text.trim()
-                                                if (msg.isNotEmpty()) {
-                                                    onSendSOS(msg)
-                                                }
-                                            },
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            text = "🆘",
-                                            fontSize = 20.sp
-                                        )
-                                    }
-                                    Spacer(Modifier.width(8.dp))
-                                    Box(
-                                        modifier = Modifier
-                                            .size(40.dp)
-                                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f), CircleShape)
-                                            .clickable {
-                                                val msg = value.text.trim()
-                                                if (msg.isNotEmpty()) {
-                                                    onSendWithGeotag(msg)
-                                                }
-                                            },
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            text = "📍",
-                                            fontSize = 20.sp
-                                        )
-                                    }
-                                    Spacer(Modifier.width(8.dp))
-                                }
-                            }
-                            
+                            // SOS lives in the quick actions above the chat (one tap, with the
+                            // position attached); the composer stays a composer.
                             AnimatedVisibility(
                                 visible = !isRecording,
                                 enter = fadeIn(tween(BitchatMotion.STANDARD_MS)) +
@@ -822,23 +795,41 @@ private fun SendButton(
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
 
-    ComposerActionSurface(
-        isActive = enabled,
-        isPressed = isPressed,
-        // Private chats and channels keep their orange identity, disc and glyph together.
-        activeColor = if (isAccented) palette.accentOrange else colorScheme.primary,
-        modifier = modifier.clickable(
-            interactionSource = interactionSource,
-            indication = null,
-            enabled = enabled
-        ) { onSend() }
-    ) { tint ->
-        Icon(
-            imageVector = Icons.Filled.ArrowUpward,
-            contentDescription = stringResource(id = R.string.send_message),
-            modifier = Modifier.size(ComposerIconSize),
-            tint = tint
-        )
+    // A filled accent disc with a white arrow, as in Messages: the one action that matters
+    // once there is text. Private chats and channels keep their own accent.
+    val accent = if (isAccented) palette.accentOrange else colorScheme.primary
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.9f else 1f,
+        animationSpec = spring(
+            dampingRatio = com.bitchat.android.ui.theme.BitchatMotion.SPRING_DAMPING,
+            stiffness = com.bitchat.android.ui.theme.BitchatMotion.SPRING_STIFFNESS
+        ),
+        label = "sendScale"
+    )
+    Box(
+        modifier = modifier
+            .size(ComposerButtonSize)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                enabled = enabled
+            ) { onSend() },
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .size(ComposerButtonDisc)
+                .scale(scale)
+                .background(if (enabled) accent else palette.inputButton, CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Filled.ArrowUpward,
+                contentDescription = stringResource(id = R.string.send_message),
+                modifier = Modifier.size(ComposerIconSize),
+                tint = if (enabled) Color.White else colorScheme.onSurfaceVariant
+            )
+        }
     }
 }
 

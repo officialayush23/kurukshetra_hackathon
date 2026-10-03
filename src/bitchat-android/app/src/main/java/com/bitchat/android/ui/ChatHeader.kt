@@ -455,10 +455,9 @@ fun ConversationHeader(
             // than the design wants between glyph and label.
             Text(
                 text = title,
-                style = MaterialTheme.typography.bodyMedium,
-                fontSize = HeaderTextSize,
-                fontWeight = FontWeight.Medium,
-                color = colorScheme.primary,
+                // A conversation title, as in Messages: primary text, semibold.
+                style = MaterialTheme.typography.titleLarge,
+                color = colorScheme.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier

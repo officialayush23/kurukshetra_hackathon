@@ -394,7 +394,7 @@ fun LocationChannelsSheet(
                             ) {
                                 Text(
                                     text = stringResource(R.string.location_permission_denied),
-                                    fontSize = 12.sp,
+                                    fontSize = 13.sp,
                                     fontFamily = BitchatFontFamily,
                                     color = colorScheme.error
                                 )
@@ -414,7 +414,7 @@ fun LocationChannelsSheet(
                                 ) {
                                     Text(
                                         text = stringResource(R.string.open_settings),
-                                        fontSize = 12.sp,
+                                        fontSize = 13.sp,
                                         fontFamily = BitchatFontFamily
                                     )
                                 }
@@ -536,7 +536,7 @@ fun LocationChannelsSheet(
                                 val shownError = remember(customError) { customError ?: "" }
                                 Text(
                                     text = shownError,
-                                    fontSize = 12.sp,
+                                    fontSize = 13.sp,
                                     fontFamily = BitchatFontFamily,
                                     color = colorScheme.error,
                                     modifier = Modifier.padding(
@@ -619,7 +619,7 @@ fun LocationChannelsSheet(
                             if (!torAvailable) {
                                 Text(
                                     text = stringResource(R.string.tor_not_available_in_this_build),
-                                    fontSize = 12.sp,
+                                    fontSize = 13.sp,
                                     fontFamily = BitchatFontFamily,
                                     color = palette.textTertiary,
                                     modifier = Modifier.padding(
@@ -777,7 +777,7 @@ private fun ChannelOptionRow(
             ) {
                 Text(
                     text = baseTitle,
-                    fontSize = 14.sp,
+                    fontSize = 16.sp,
                     fontFamily = BitchatFontFamily,
                     fontWeight = if (titleBold) FontWeight.SemiBold else FontWeight.Medium,
                     color = titleColor ?: colorScheme.onSurface
@@ -786,7 +786,7 @@ private fun ChannelOptionRow(
                     AnimatedCountLabel(
                         count = participantCount,
                         text = count,
-                        fontSize = 11.sp,
+                        fontSize = 12.sp,
                         fontFamily = BitchatFontFamily,
                         color = colorScheme.onSurfaceVariant
                     )
@@ -794,7 +794,7 @@ private fun ChannelOptionRow(
             }
             Text(
                 text = subtitle,
-                fontSize = 12.sp,
+                fontSize = 13.sp,
                 fontFamily = BitchatFontFamily,
                 lineHeight = 17.sp,
                 color = colorScheme.onSurfaceVariant
@@ -859,7 +859,7 @@ private fun ChannelLoadingRow() {
         }
         Text(
             text = stringResource(R.string.finding_nearby_channels),
-            fontSize = 12.sp,
+            fontSize = 13.sp,
             fontFamily = BitchatFontFamily,
             color = colorScheme.onSurfaceVariant
         )
@@ -927,7 +927,7 @@ private fun CustomGeohashRow(
 
         Text(
             text = stringResource(R.string.hash_symbol),
-            fontSize = 14.sp,
+            fontSize = 16.sp,
             fontFamily = BitchatFontFamily,
             color = palette.textTertiary
         )
@@ -938,7 +938,7 @@ private fun CustomGeohashRow(
             value = customGeohash,
             onValueChange = onGeohashChange,
             textStyle = TextStyle(
-                fontSize = 14.sp,
+                fontSize = 16.sp,
                 fontFamily = BitchatFontFamily,
                 color = colorScheme.primary
             ),
@@ -966,7 +966,7 @@ private fun CustomGeohashRow(
                 if (customGeohash.isEmpty()) {
                     Text(
                         text = stringResource(R.string.geohash_placeholder),
-                        fontSize = 14.sp,
+                        fontSize = 16.sp,
                         fontFamily = BitchatFontFamily,
                         color = palette.textTertiary
                     )
@@ -1000,7 +1000,7 @@ private fun CustomGeohashRow(
         ) {
             Text(
                 text = stringResource(R.string.teleport).uppercase(),
-                fontSize = 11.sp,
+                fontSize = 12.sp,
                 letterSpacing = 0.8.sp,
                 fontWeight = FontWeight.Medium,
                 fontFamily = BitchatFontFamily,
@@ -1049,7 +1049,7 @@ private fun ChannelSettingsToggleRow(
                 Text(
                     text = title,
                     fontFamily = BitchatFontFamily,
-                    fontSize = 14.sp,
+                    fontSize = 16.sp,
                     fontWeight = FontWeight.Medium,
                     color = if (enabled) colorScheme.onSurface else palette.textTertiary
                 )
@@ -1058,7 +1058,7 @@ private fun ChannelSettingsToggleRow(
             Text(
                 text = subtitle,
                 fontFamily = BitchatFontFamily,
-                fontSize = 12.sp,
+                fontSize = 13.sp,
                 lineHeight = 17.sp,
                 color = if (enabled) colorScheme.onSurfaceVariant else palette.textTertiary
             )
