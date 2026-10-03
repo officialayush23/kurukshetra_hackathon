@@ -98,11 +98,20 @@ fun ChatScreen(
     // (not read once) so markers appear and update while the map is open.
     val mapShelters by viewModel.shelters.collectAsStateWithLifecycle()
     val mapPublicMessages by viewModel.publicMessages.collectAsStateWithLifecycle()
-    val mapEntities = remember(mapShelters, mapPublicMessages, nickname, localRole) {
+    // A crew's unit id comes from the online app (see shell/Handoff.kt); with it, the
+    // command centre's dispatch for this unit becomes "Your task" on the map.
+    val handoff by com.bitchat.android.shell.Handoff.state.collectAsStateWithLifecycle()
+    val myUnitId = handoff.unitId
+    val mapEntities = remember(mapShelters, mapPublicMessages, nickname, localRole, myUnitId) {
         val visible = mapPublicMessages.filter {
             com.bitchat.android.services.AudiencePolicy.visibleTo(localRole, it)
         }
-        com.bitchat.android.ui.map.buildMapEntities(mapShelters, visible, nickname)
+        com.bitchat.android.ui.map.buildMapEntities(
+            mapShelters, visible, nickname,
+            myUnitId = myUnitId,
+            seeAllTasks = localRole == com.bitchat.android.model.Role.GOV ||
+                localRole == com.bitchat.android.model.Role.COMMAND,
+        )
     }
     val mapSosCount = remember(mapEntities) { mapEntities.count { it.isCritical } }
 
@@ -141,7 +150,8 @@ fun ChatScreen(
         if (fresh && h.navigating && h.hasDestination) {
             val entity = com.bitchat.android.ui.map.MapEntity(
                 id = HANDOFF_DEST_ID,
-                kind = com.bitchat.android.ui.map.MapEntityKind.SHELTER,
+                kind = if (h.destKind == "task") com.bitchat.android.ui.map.MapEntityKind.TASK
+                else com.bitchat.android.ui.map.MapEntityKind.SHELTER,
                 lat = h.destLat!!, lon = h.destLng!!,
                 title = h.destName ?: "Destination",
                 body = h.destKind?.let { "Guidance from the command centre: $it" },
@@ -154,6 +164,18 @@ fun ChatScreen(
             mapFocusId = entity.id
             mapGuidanceId = entity.id
             showMapSheet = true
+        }
+    }
+
+    // A new dispatch for this crew becomes the guidance target, unless the crew is already
+    // being guided somewhere: the control room's instruction is the default, not an override.
+    val myTask = if (myUnitId != null) {
+        mapEntities.lastOrNull { it.kind == com.bitchat.android.ui.map.MapEntityKind.TASK }
+    } else null
+    LaunchedEffect(myTask?.id) {
+        val task = myTask ?: return@LaunchedEffect
+        if (mapGuidanceId == null || mapEntities.none { it.id == mapGuidanceId }) {
+            mapGuidanceId = task.id
         }
     }
 

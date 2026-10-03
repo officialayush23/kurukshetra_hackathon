@@ -1063,11 +1063,7 @@ private fun SectionLabel(text: String) {
 @Composable
 fun KindBadge(kind: MapEntityKind, size: Dp = 36.dp, muted: Boolean = false) {
     val color = MapPalette.of(kind)
-    val glyphTint = when (kind) {
-        MapEntityKind.INCIDENT, MapEntityKind.AMBULANCE, MapEntityKind.SHELTER ->
-            if (muted) Color.White else Color(0xFF0B0F17)
-        else -> Color.White
-    }
+    val glyphTint = if (MapPalette.needsDarkGlyph(kind) && !muted) Color(0xFF0B0F17) else Color.White
     Box(
         modifier = Modifier
             .size(size)
@@ -1146,19 +1142,20 @@ private fun hazardsAlong(
     if (pts != null && pts.size >= 2) {
         val from = positionOnLine(pts, fix.lat, fix.lon)?.alongM ?: 0.0
         return entities.asSequence()
-            .filter { it.id != target.id && (it.kind == MapEntityKind.SOS || it.kind == MapEntityKind.INCIDENT) }
+            .filter { it.id != target.id && it.kind.isHazard }
             .mapNotNull { e ->
                 val p = positionOnLine(pts, e.lat, e.lon) ?: return@mapNotNull null
-                if (p.offM > CORRIDOR_M || p.alongM < from) null else Hazard(e, p.alongM - from, p.offM)
+                // A closure blocks its whole radius, not only its centre point.
+                if (p.offM > CORRIDOR_M + (e.radiusM ?: 0) || p.alongM < from) null else Hazard(e, p.alongM - from, p.offM)
             }
             .sortedBy { it.aheadM }
             .toList()
     }
     return entities.asSequence()
-        .filter { it.id != target.id && (it.kind == MapEntityKind.SOS || it.kind == MapEntityKind.INCIDENT) }
+        .filter { it.id != target.id && it.kind.isHazard }
         .mapNotNull { e ->
             val off = distanceToSegmentMeters(e.lat, e.lon, fix.lat, fix.lon, target.lat, target.lon)
-            if (off > CORRIDOR_M) null
+            if (off > CORRIDOR_M + (e.radiusM ?: 0)) null
             else Hazard(e, alongSegmentMeters(e.lat, e.lon, fix.lat, fix.lon, target.lat, target.lon), off)
         }
         .sortedBy { it.aheadM }
@@ -1277,12 +1274,29 @@ private fun NavigationPanel(
             if (fix != null && fixStale) {
                 StatusLine(color = MapPalette.Stale, text = "Your location is ${formatAge(now - fix.timeMs)} old")
             }
-            hazards.firstOrNull()?.let { h ->
+            // A closure the way actually passes through outranks everything else: it means
+            // the guidance cannot be followed as drawn.
+            val blocked = hazards.firstOrNull { h ->
+                h.entity.kind == MapEntityKind.CLOSURE && h.offLineM <= (h.entity.radiusM ?: 0)
+            }
+            if (blocked != null) {
                 StatusLine(
-                    color = if (h.entity.isCritical) MapPalette.Sos else MapPalette.Report,
+                    color = MapPalette.Closure,
+                    text = "Road closed ${formatMeters(blocked.aheadM.toFloat())} ahead on this way" +
+                        (blocked.entity.body?.lineSequence()?.firstOrNull()?.let { " · $it" } ?: "") +
+                        " · look for another way",
+                )
+            }
+            hazards.firstOrNull { it !== blocked }?.let { h ->
+                StatusLine(
+                    color = when {
+                        h.entity.isCritical -> MapPalette.Sos
+                        h.entity.kind == MapEntityKind.CLOSURE -> MapPalette.Closure
+                        else -> MapPalette.Report
+                    },
                     text = "${h.entity.headline} ${formatMeters(h.aheadM.toFloat())} ahead, " +
                         "${formatMeters(h.offLineM.toFloat())} off the way" +
-                        if (hazards.size > 1) " · +${hazards.size - 1} more" else "",
+                        if (hazards.size > 2 || (blocked == null && hazards.size > 1)) " · more below" else "",
                 )
             }
         }
@@ -1324,8 +1338,8 @@ private fun ColumnScope.GuidanceSheet(
             if (route != null) {
                 "This is a ${if (route.profile == "foot") "walking" else "road"} route to " +
                     "${target.headline}, fetched while there was signal and saved on this phone, so " +
-                    "it keeps working offline. It does not know about closures reported since " +
-                    "it was saved — check the reports along it below."
+                    "it keeps working offline. It was not planned around closures announced since " +
+                    "it was saved — any that reached this phone are listed below."
             } else {
                 "No route is saved for this place from here. This shows the straight line and " +
                     "distance to ${target.headline}, updated as you move. A route is fetched and " +
@@ -1342,7 +1356,7 @@ private fun ColumnScope.GuidanceSheet(
             Text("Needs your location.", style = MaterialTheme.typography.bodySmall, color = MapPalette.TextTertiary)
         } else if (hazards.isEmpty()) {
             Text(
-                "No SOS or reports within ${CORRIDOR_M.toInt()} m of it. That is only what " +
+                "No SOS, reports or road closures within ${CORRIDOR_M.toInt()} m of it. That is only what " +
                     "has reached this phone — it is not a safety check.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MapPalette.TextTertiary,
@@ -1352,7 +1366,9 @@ private fun ColumnScope.GuidanceSheet(
                 EntityRow(
                     entity = h.entity,
                     trailing = "${formatMeters(h.aheadM.toFloat())} ahead",
-                    subtitle = "${formatMeters(h.offLineM.toFloat())} off it",
+                    subtitle = h.entity.radiusM?.takeIf { h.offLineM <= it }
+                        ?.let { "Your way goes through it" }
+                        ?: "${formatMeters(h.offLineM.toFloat())} off it",
                     onClick = { onSelect(h.entity) },
                 )
             }

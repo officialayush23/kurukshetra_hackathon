@@ -9,6 +9,9 @@ import android.graphics.Paint
 import android.graphics.Path
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AccountBalance
+import androidx.compose.material.icons.rounded.Block
+import androidx.compose.material.icons.rounded.Campaign
+import androidx.compose.material.icons.rounded.Flag
 import androidx.compose.material.icons.rounded.House
 import androidx.compose.material.icons.rounded.LocalFireDepartment
 import androidx.compose.material.icons.rounded.LocalHospital
@@ -41,6 +44,12 @@ object MapPalette {
     val Gov = Color(0xFF8E8CFF)
     val Shelter = Color(0xFF30D9A0)
     val You = Color(0xFF0A84FF)
+    /** Road closures: hazard-tape yellow, read as "don't go this way" without using SOS red. */
+    val Closure = Color(0xFFFFD60A)
+    /** Command centre area alerts. */
+    val Alert = Color(0xFFFF9F0A)
+    /** This crew's dispatched task: the route colour, since it is where the route goes. */
+    val Task = Color(0xFF32D74B)
 
     /** A real walking/road route. */
     val Route = Color(0xFF32D74B)
@@ -65,6 +74,16 @@ object MapPalette {
         MapEntityKind.FIRE -> Fire
         MapEntityKind.GOV -> Gov
         MapEntityKind.SHELTER -> Shelter
+        MapEntityKind.CLOSURE -> Closure
+        MapEntityKind.ALERT -> Alert
+        MapEntityKind.TASK -> Task
+    }
+
+    /** Fills light enough to need a dark glyph on top. */
+    fun needsDarkGlyph(kind: MapEntityKind): Boolean = when (kind) {
+        MapEntityKind.INCIDENT, MapEntityKind.AMBULANCE, MapEntityKind.SHELTER,
+        MapEntityKind.CLOSURE, MapEntityKind.ALERT, MapEntityKind.TASK -> true
+        else -> false
     }
 }
 
@@ -75,6 +94,9 @@ fun glyphFor(kind: MapEntityKind): ImageVector = when (kind) {
     MapEntityKind.FIRE -> Icons.Rounded.LocalFireDepartment
     MapEntityKind.GOV -> Icons.Rounded.AccountBalance
     MapEntityKind.SHELTER -> Icons.Rounded.House
+    MapEntityKind.CLOSURE -> Icons.Rounded.Block
+    MapEntityKind.ALERT -> Icons.Rounded.Campaign
+    MapEntityKind.TASK -> Icons.Rounded.Flag
 }
 
 /**

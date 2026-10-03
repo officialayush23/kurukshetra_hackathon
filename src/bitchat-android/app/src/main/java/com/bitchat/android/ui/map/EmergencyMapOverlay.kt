@@ -75,7 +75,7 @@ class EmergencyMapOverlay(
     }.getOrDefault(true)
 
     private val typeface: Typeface = runCatching {
-        ResourcesCompat.getFont(context, R.font.geist_mono_medium)
+        ResourcesCompat.getFont(context, R.font.inter_semibold)
     }.getOrNull() ?: Typeface.DEFAULT_BOLD
 
     private val markerRadius = dp(14f)
@@ -175,6 +175,24 @@ class EmergencyMapOverlay(
             val pinned = e.id == selectedId || e.id == guidanceTargetId
             if (!pinned && (x < -margin || y < -margin || x > w + margin || y > h + margin)) return@forEach
             visible += Projected(e, x, y)
+        }
+
+        // ---- areas: closures and alerts cover ground, not a point. Drawn under the route so
+        // a route crossing a closure is visible as exactly that.
+        visible.forEach { p ->
+            val e = p.entity
+            val radius = e.radiusM ?: return@forEach
+            if (!e.kind.hasArea) return@forEach
+            val r = projection.metersToPixels(radius.toFloat(), e.lat, zoom)
+            if (r < dp(6f)) return@forEach
+            val base = MapPalette.of(e.kind).toArgb()
+            fill.color = withAlpha(base, if (e.kind == MapEntityKind.CLOSURE) 0x38 else 0x1C)
+            canvas.drawCircle(p.x, p.y, min(r, max(w, h) * 2f), fill)
+            stroke.color = withAlpha(base, 0xB0)
+            stroke.strokeWidth = dp(if (e.kind == MapEntityKind.CLOSURE) 2f else 1.25f)
+            stroke.pathEffect = if (e.kind == MapEntityKind.CLOSURE) dash else null
+            canvas.drawCircle(p.x, p.y, min(r, max(w, h) * 2f), stroke)
+            stroke.pathEffect = null
         }
 
         // ---- guidance: the saved route when there is one, solid; otherwise a direct
@@ -319,8 +337,7 @@ class EmergencyMapOverlay(
         canvas.drawCircle(x, y, r, fill)
 
         // Dark glyph on the light fills (ambulance sky, report amber), white on the rest.
-        val useDark = e.kind == MapEntityKind.INCIDENT || e.kind == MapEntityKind.AMBULANCE ||
-            e.kind == MapEntityKind.SHELTER
+        val useDark = MapPalette.needsDarkGlyph(e.kind)
         val glyph = (if (useDark && !muted) darkGlyphs else glyphs)[e.kind]
         if (glyph != null) {
             val gs = glyphPx * (if (selected) 1.2f else 1f) * (if (e.isCritical) 1.08f else 1f)

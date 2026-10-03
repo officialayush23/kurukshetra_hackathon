@@ -28,9 +28,21 @@ enum class MapEntityKind(val label: String, val pluralLabel: String) {
     AMBULANCE("Ambulance", "Ambulance"),
     FIRE("Fire", "Fire"),
     GOV("Gov", "Gov"),
-    SHELTER("Shelter", "Shelters");
+    SHELTER("Shelter", "Shelters"),
+    /** A road the command centre (or a crew) declared impassable: IDX1 `B`. */
+    CLOSURE("Road closed", "Road closures"),
+    /** A command centre alert for an area: IDX1 `A`. */
+    ALERT("Alert", "Alerts"),
+    /** Where a crew has been dispatched: IDX1 `D` for this phone's unit. */
+    TASK("Your task", "Tasks");
 
     val isResponder: Boolean get() = this == AMBULANCE || this == FIRE || this == GOV
+
+    /** Things a route should not pass through, or should warn about. */
+    val isHazard: Boolean get() = this == SOS || this == INCIDENT || this == CLOSURE
+
+    /** Drawn with the area they cover, not only a pin. */
+    val hasArea: Boolean get() = this == CLOSURE || this == ALERT
 }
 
 /** The contextual filters offered on the map. Each one maps onto real entity kinds. */
@@ -41,7 +53,8 @@ enum class MapFilter(val label: String, val kinds: Set<MapEntityKind>) {
     AMBULANCE("Ambulance", setOf(MapEntityKind.AMBULANCE)),
     FIRE("Fire", setOf(MapEntityKind.FIRE)),
     GOV("Gov", setOf(MapEntityKind.GOV)),
-    SHELTERS("Shelters", setOf(MapEntityKind.SHELTER));
+    SHELTERS("Shelters", setOf(MapEntityKind.SHELTER)),
+    COMMAND("Command", setOf(MapEntityKind.CLOSURE, MapEntityKind.ALERT, MapEntityKind.TASK));
 
     fun matches(kind: MapEntityKind) = kind in kinds
 }
@@ -67,6 +80,8 @@ data class MapEntity(
     val peerID: String?,
     val messageId: String?,
     val isOwn: Boolean,
+    /** For areas (closures, alerts): the radius the command centre gave, in metres. */
+    val radiusM: Int? = null,
 ) {
     val isCritical: Boolean get() = kind == MapEntityKind.SOS
 
@@ -80,15 +95,23 @@ data class MapEntity(
         get() = when (kind) {
             MapEntityKind.SOS, MapEntityKind.INCIDENT ->
                 if (messageId != null) "${kind.label} $shortRef" else title
+            MapEntityKind.CLOSURE -> body?.lineSequence()?.firstOrNull()?.take(40)?.let { "Road closed · $it" } ?: title
             else -> title
         }
 }
 
 private val GEO_TAG = Regex("\\s*geo:-?\\d+(?:\\.\\d+)?,-?\\d+(?:\\.\\d+)?")
+private val IDX1_PACKET = Regex("""\s*IDX1\|([A-Z])\|(\{.*\})\|(?:[0-9a-fA-F]{16}|-)\s*$""", RegexOption.DOT_MATCHES_ALL)
 
-/** Message text as a person should read it: no `geo:` tag, no leading SOS glyph. */
+/** Message text as a person should read it: no `geo:` tag, no machine packet, no SOS glyph. */
 fun displayBody(content: String): String =
-    content.replace(GEO_TAG, "").removePrefix("🆘").trim()
+    content.replace(IDX1_PACKET, "").replace(GEO_TAG, "").removePrefix("🆘").trim()
+
+/** The IDX1 packet a message carries, as (type, body), or null. */
+fun idx1Of(content: String): Pair<String, org.json.JSONObject>? {
+    val m = IDX1_PACKET.find(content) ?: return null
+    return try { m.groupValues[1] to org.json.JSONObject(m.groupValues[2]) } catch (_: Exception) { null }
+}
 
 fun isSosMessage(content: String): Boolean = content.trimStart().startsWith("🆘")
 
@@ -102,6 +125,10 @@ fun buildMapEntities(
     shelters: List<AppStateStore.VerifiedShelter>,
     messages: List<BitchatMessage>,
     myNickname: String?,
+    /** This crew's unit (from the online app), so its dispatch shows as "Your task". */
+    myUnitId: String? = null,
+    /** Gov and Command phones see every crew's task. */
+    seeAllTasks: Boolean = false,
 ): List<MapEntity> {
     val out = ArrayList<MapEntity>(shelters.size + 32)
     shelters.forEach { vs ->
@@ -134,28 +161,77 @@ fun buildMapEntities(
             isOwn = false,
         )
     }
+    // Command centre crew traffic: the newest dispatch per unit, unless a later cancel.
+    val latestTask = HashMap<String, Pair<BitchatMessage, org.json.JSONObject>>()
+    val cancelledAt = HashMap<String, Long>()
     messages.forEach { msg ->
-        val geo = parseGeoTag(msg.content) ?: return@forEach
+        val (type, body) = idx1Of(msg.content) ?: return@forEach
+        val unit = body.optString("u").ifBlank { return@forEach }
+        when (type) {
+            "D" -> if ((latestTask[unit]?.first?.timestamp?.time ?: -1L) <= msg.timestamp.time) latestTask[unit] = msg to body
+            "C" -> cancelledAt[unit] = maxOf(cancelledAt[unit] ?: 0L, msg.timestamp.time)
+        }
+    }
+
+    messages.forEach { msg ->
+        val packet = idx1Of(msg.content)
+        val type = packet?.first
+        val body = packet?.second
+        val geo = parseGeoTag(msg.content)
+            ?: body?.let { b ->
+                val la = b.optDouble("la"); val lo = b.optDouble("lo")
+                if (la.isFinite() && lo.isFinite()) la to lo else null
+            }
+            ?: return@forEach
         if (abs(geo.first) > 90 || abs(geo.second) > 180) return@forEach
-        val sos = isSosMessage(msg.content)
-        val body = displayBody(msg.content)
-        val kind = if (sos) MapEntityKind.SOS else MapEntityKind.INCIDENT
+        val text = displayBody(msg.content)
+        val kind = when (type) {
+            "B" -> MapEntityKind.CLOSURE
+            "A" -> MapEntityKind.ALERT
+            "D" -> {
+                val unit = body?.optString("u").orEmpty()
+                val mine = seeAllTasks || (myUnitId != null && unit == myUnitId)
+                val current = latestTask[unit]?.first?.id == msg.id &&
+                    (cancelledAt[unit] ?: 0L) < msg.timestamp.time
+                if (!mine || !current) return@forEach
+                MapEntityKind.TASK
+            }
+            "C" -> return@forEach
+            else -> if (isSosMessage(msg.content)) MapEntityKind.SOS else MapEntityKind.INCIDENT
+        }
+        val title = when (kind) {
+            MapEntityKind.CLOSURE -> "Road closed"
+            MapEntityKind.ALERT -> text.removePrefix("ALERT").trim().ifBlank { "Alert" }
+            MapEntityKind.TASK -> body?.optString("x")?.ifBlank { null } ?: "Your task"
+            else -> text.ifBlank { kind.label }
+        }.lineSequence().first().take(80)
+        val detail = when (kind) {
+            MapEntityKind.CLOSURE -> body?.optString("x")?.ifBlank { null } ?: text
+            MapEntityKind.ALERT -> body?.optString("x")?.ifBlank { null }?.let { "$text\n$it" } ?: text
+            MapEntityKind.TASK -> text + (body?.optInt("m", 0)?.takeIf { it > 0 }?.let { " · ETA $it min" } ?: "")
+            else -> text
+        }
         out += MapEntity(
             id = "msg:${msg.id}",
             kind = kind,
             lat = geo.first,
             lon = geo.second,
-            title = body.ifBlank { kind.label }.lineSequence().first().take(80),
-            body = body.ifBlank { null },
+            title = title,
+            body = detail.ifBlank { null },
             reporter = msg.sender,
             reporterRole = msg.category,
             timestampMs = msg.timestamp.time,
-            verified = null,
+            verified = if (kind == MapEntityKind.CLOSURE || kind == MapEntityKind.ALERT || kind == MapEntityKind.TASK) true else null,
             status = null,
             capacity = null,
             peerID = msg.senderPeerID,
             messageId = msg.id,
             isOwn = myNickname != null && msg.sender == myNickname,
+            radiusM = when (kind) {
+                MapEntityKind.CLOSURE -> body?.optInt("r", 150)?.takeIf { it > 0 } ?: 150
+                MapEntityKind.ALERT -> body?.optInt("r", 2500)?.takeIf { it > 0 } ?: 2500
+                else -> null
+            },
         )
     }
     return out
