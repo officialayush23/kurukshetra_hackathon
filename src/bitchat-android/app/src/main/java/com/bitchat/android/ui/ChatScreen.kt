@@ -8,6 +8,7 @@ import com.bitchat.android.ui.theme.BitchatFontFamily
 
 
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.rounded.Map as MapIcon
 import androidx.compose.animation.*
@@ -842,7 +843,7 @@ private fun NearbyNotesStrip(
                 fontSize = 12.sp,
             )
             Icon(
-                imageVector = androidx.compose.material.icons.Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(20.dp),
