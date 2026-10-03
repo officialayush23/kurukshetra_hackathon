@@ -41,6 +41,12 @@ class MeshDelegateHandler(
                 }
             }
             
+            // Camera/VLM detections are invisible on non-government phones: no buzz either.
+            if (!message.isPrivate && !com.bitchat.android.services.AudiencePolicy.visibleTo(
+                    state.getLocalRoleValue(), message
+                )
+            ) return@launch
+
             // Trigger haptic feedback
             onHapticFeedback()
 

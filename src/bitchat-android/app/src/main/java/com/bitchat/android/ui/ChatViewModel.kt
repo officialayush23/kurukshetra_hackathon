@@ -539,8 +539,13 @@ class ChatViewModel(
             } } catch (_: Exception) { }
         }
         viewModelScope.launch {
-            try { com.bitchat.android.services.AppStateStore.publicMessages
-                .combine(state.subscribedRoles) { msgs, subs ->
+            try { combine(
+                com.bitchat.android.services.AppStateStore.publicMessages,
+                state.subscribedRoles,
+                state.localRole,
+            ) { all, subs, role ->
+                    // Camera/VLM detections are for Gov and Command phones only.
+                    val msgs = all.filter { com.bitchat.android.services.AudiencePolicy.visibleTo(role, it) }
                     // Local client-side role filter: show everything when the subscription set is
                     // empty ("All"), otherwise pass messages whose category matches a subscribed
                     // role or whose category is UNSET (legacy / no role declared). Channel
@@ -591,7 +596,14 @@ class ChatViewModel(
             } } catch (_: Exception) { }
         }
         viewModelScope.launch {
-            try { com.bitchat.android.services.AppStateStore.channelMessages.collect { byChannel ->
+            try { combine(
+                com.bitchat.android.services.AppStateStore.channelMessages,
+                state.localRole,
+            ) { byChannel, role ->
+                byChannel.mapValues { (_, msgs) ->
+                    msgs.filter { com.bitchat.android.services.AudiencePolicy.visibleTo(role, it) }
+                }
+            }.collect { byChannel ->
                 // Replace with store snapshot
                 state.setChannelMessages(byChannel)
             } } catch (_: Exception) { }

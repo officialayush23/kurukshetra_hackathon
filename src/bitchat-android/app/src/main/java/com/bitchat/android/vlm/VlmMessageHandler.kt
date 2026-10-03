@@ -88,6 +88,28 @@ object VlmMessageHandler {
             else -> com.bitchat.android.model.Role.UNSET
         }
 
+    /**
+     * A broadcast VLM brief always carries an IDX1 `S` (sensor) packet, the same format the
+     * camera bridge sends. Phones show `S` packets only to Gov and Command
+     * ([com.bitchat.android.services.AudiencePolicy]); a gateway forwards it to the command
+     * centre, which keeps camera-only incidents on the dashboard. Unsigned ("-"): the API
+     * then treats it as unverified, like any unsigned packet.
+     */
+    fun asSensorPacket(text: String, messageId: String): String {
+        if (text.contains("IDX1|")) return text
+        val body = org.json.JSONObject()
+        body.put("id", messageId)
+        body.put("n", "vlm-phone")
+        body.put("k", com.bitchat.android.services.SyncBundleBuilder.hazardKind(text) ?: "observation")
+        com.bitchat.android.net.LastFix.cached?.let { (la, lo) ->
+            body.put("la", Math.round(la * 100_000) / 100_000.0)
+            body.put("lo", Math.round(lo * 100_000) / 100_000.0)
+        }
+        body.put("x", text.take(200))
+        body.put("t", System.currentTimeMillis() / 1000)
+        return "$text IDX1|S|$body|-"
+    }
+
     fun sendTextMessage(
         context: Context,
         text: String,
@@ -144,14 +166,15 @@ object VlmMessageHandler {
                 VlmResult.Success(messageId, null)
             } else {
                 val cat = category ?: categoryFor(text)
-                mesh.sendMessage(text, emptyList(), resolvedChannel, cat)
+                val wire = asSensorPacket(text, messageId)
+                mesh.sendMessage(wire, emptyList(), resolvedChannel, cat)
                 updateLastSendTime()
                 
                 val message = BitchatMessage(
                     id = messageId,
                     sender = nickname,
                     senderPeerID = null,
-                    content = text,
+                    content = wire,
                     timestamp = Date(),
                     isRelay = false,
                     deliveryStatus = DeliveryStatus.Sent,
@@ -166,7 +189,7 @@ object VlmMessageHandler {
                 Log.i(TAG, "Sent broadcast message${resolvedChannel?.let { " to channel $it" } ?: ""}")
                 // A report this phone's user sent should be forwarded by this phone too,
                 // not only by the neighbours (the mesh does not echo our own messages).
-                try { IndradhanuGateway.onLocalSend(text) } catch (_: Exception) { }
+                try { IndradhanuGateway.onLocalSend(wire) } catch (_: Exception) { }
                 VlmResult.Success(messageId, null)
             }
         } catch (e: Exception) {

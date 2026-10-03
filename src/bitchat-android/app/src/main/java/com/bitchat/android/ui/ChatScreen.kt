@@ -95,8 +95,11 @@ fun ChatScreen(viewModel: ChatViewModel) {
     // (not read once) so markers appear and update while the map is open.
     val mapShelters by viewModel.shelters.collectAsStateWithLifecycle()
     val mapPublicMessages by viewModel.publicMessages.collectAsStateWithLifecycle()
-    val mapEntities = remember(mapShelters, mapPublicMessages, nickname) {
-        com.bitchat.android.ui.map.buildMapEntities(mapShelters, mapPublicMessages, nickname)
+    val mapEntities = remember(mapShelters, mapPublicMessages, nickname, localRole) {
+        val visible = mapPublicMessages.filter {
+            com.bitchat.android.services.AudiencePolicy.visibleTo(localRole, it)
+        }
+        com.bitchat.android.ui.map.buildMapEntities(mapShelters, visible, nickname)
     }
     val mapSosCount = remember(mapEntities) { mapEntities.count { it.isCritical } }
 

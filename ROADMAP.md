@@ -31,6 +31,7 @@ drafts. VLM camera alerts are for government only and never reach citizens.
 | 2026-10-03 | kurukshetra | Removed `_claude_tmp/` from the repo and ignored it. |
 | 2026-10-03 | DisruptionOps | Citizen and crew PWAs map-first: full-screen map, bottom sheet (phone), floating card (tablet), map + panel (desktop), nav panel, filters, connectivity pill, Mapbox Standard night basemap, badge markers shared with Android. |
 | 2026-10-03 | DisruptionOps | Navigation from the command centre is visible: citizen gets `/citizen/guide` routes (auto-started by an advisory with a safe location); crews get their unit's dispatched route, steps and ETA from `/field/state`, with hazards ahead and re-route notices. |
+| 2026-10-03 | both | VLM/camera alerts are government-only (item 1). |
 | earlier | kurukshetra | `IndradhanuGateway`: phone ↔ command centre bridge (push mesh SOS/reports, pull outbox alerts/dispatches/road blocks onto the mesh as role COMMAND, cache centres + routes). See `src/bitchat-android/docs/COMMAND_CENTRE_LINK.md`. |
 
 Verified only in this order: PWA typecheck/build/screenshots; Android map code compiled
@@ -41,20 +42,21 @@ do that first on the next session (`cd src/bitchat-android && ./gradlew :app:ass
 
 ## To do (in order)
 
-### 1. VLM alerts → government only  ·  status: in progress
+### 1. VLM alerts → government only  ·  status: done (verify on devices)
 
-Today VLM briefs are broadcast on the **public** mesh (`VlmMessageHandler.sendTextMessage`
-with a Fire/Ambulance/Gov category), so every phone sees them, and once they reach the
-API as `S` packets they become ordinary incidents that the citizen and crew apps show.
-
-- [ ] Android: VLM briefs are not broadcast publicly. They are stored locally, forwarded
-      to the command centre by the gateway, and sent only to peers whose announced role
-      is GOV or COMMAND.
-- [ ] Android: the timeline hides VLM briefs for any other local role.
-- [ ] Backend: incidents created from VLM/sensor packets are excluded from
-      `/citizen/state` and `/field/state` unless an operator confirms them; the admin
-      dashboard still sees them.
-- [ ] PWA: no change expected once the backend filters; verify.
+- [x] Android: every broadcast VLM brief carries an IDX1 `S` packet
+      (`VlmMessageHandler.asSensorPacket`, unsigned `-`, kind from the text, last GPS fix).
+      It still travels the mesh so any gateway phone forwards it to the command centre.
+- [x] Android: `services/AudiencePolicy.kt` hides `S` packets and `vlm-` messages from the
+      public timeline, channels, map and haptics unless the local role is GOV or COMMAND.
+- [x] Backend: sensor reports are keyed `device:sensor:<node>`; `/citizen/state` and
+      `/field/state` drop incidents only cameras reported (`CAMERA_ONLY` in
+      `api/v1/personas.py`) until an operator moves them past `reported` or a person
+      reports the same thing. The dashboard is unchanged and sees everything.
+      `/citizen/guide` still routes around them (safety, not display).
+- [x] PWA: no change needed; both apps read incidents only from those two endpoints.
+- [ ] On devices: a Civilian phone next to a Gov phone; send a VLM brief; only the Gov
+      phone shows it, and it appears on the dashboard.
 
 ### 2. Sign-in in BiChat (citizen and field crew)
 
