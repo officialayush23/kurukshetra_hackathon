@@ -9,6 +9,7 @@ import com.bitchat.android.ui.theme.BitchatFontFamily
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.rounded.Map as MapIcon
 import androidx.compose.animation.*
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
@@ -16,6 +17,7 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -89,6 +91,15 @@ fun ChatScreen(viewModel: ChatViewModel) {
     val subscribedRoles by viewModel.subscribedRoles.collectAsStateWithLifecycle()
     val peerRoles by viewModel.peerRoles.collectAsStateWithLifecycle()
 
+    // Everything with a position: the node registry plus geo-tagged broadcasts. Collected
+    // (not read once) so markers appear and update while the map is open.
+    val mapShelters by viewModel.shelters.collectAsStateWithLifecycle()
+    val mapPublicMessages by viewModel.publicMessages.collectAsStateWithLifecycle()
+    val mapEntities = remember(mapShelters, mapPublicMessages, nickname) {
+        com.bitchat.android.ui.map.buildMapEntities(mapShelters, mapPublicMessages, nickname)
+    }
+    val mapSosCount = remember(mapEntities) { mapEntities.count { it.isCritical } }
+
     var messageText by remember { mutableStateOf(TextFieldValue("")) }
     var showPasswordPrompt by remember { mutableStateOf(false) }
     var showPasswordDialog by remember { mutableStateOf(false) }
@@ -97,6 +108,12 @@ fun ChatScreen(viewModel: ChatViewModel) {
     var showLocationNotesSheet by remember { mutableStateOf(false) }
     var showShelterSheet by remember { mutableStateOf(false) }
     var showMapSheet by remember { mutableStateOf(false) }
+    // Which entity the map opens on (from a message's "View on map"), and the destination the
+    // person is being guided to. Both outlive the map being closed, so going back to the chat
+    // mid-guidance and reopening the map resumes where it was.
+    var mapFocusId by rememberSaveable { mutableStateOf<String?>(null) }
+    var mapGuidanceId by rememberSaveable { mutableStateOf<String?>(null) }
+    var mapAdHocEntity by remember { mutableStateOf<com.bitchat.android.ui.map.MapEntity?>(null) }
     var showUserSheet by remember { mutableStateOf(false) }
     var selectedUserForSheet by remember { mutableStateOf("") }
     var selectedMessageForSheet by remember { mutableStateOf<BitchatMessage?>(null) }
@@ -300,8 +317,26 @@ if (isMeshTimeline) {
                       androidx.compose.material3.TextButton(onClick = { showShelterSheet = true }) {
                           androidx.compose.material3.Text("Shelters ${if (viewModel.shelters.value.isNotEmpty()) "(${viewModel.shelters.value.size})" else ""}")
                       }
-                      androidx.compose.material3.TextButton(onClick = { showMapSheet = true }) {
+                      androidx.compose.material3.TextButton(onClick = {
+                          mapFocusId = null
+                          mapAdHocEntity = null
+                          showMapSheet = true
+                      }) {
+                          Icon(
+                              imageVector = Icons.Rounded.MapIcon,
+                              contentDescription = null,
+                              modifier = Modifier.size(16.dp)
+                          )
+                          Spacer(Modifier.width(6.dp))
                           androidx.compose.material3.Text("Map")
+                          if (mapSosCount > 0) {
+                              Spacer(Modifier.width(6.dp))
+                              androidx.compose.material3.Text(
+                                  "$mapSosCount SOS",
+                                  color = colorScheme.error,
+                                  fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
+                              )
+                          }
                       }
                   }
                   RoleFilterRow(
@@ -381,6 +416,17 @@ if (isMeshTimeline) {
                     viewerImagePaths = allImagePaths
                     initialViewerIndex = initialIndex
                     showFullScreenImageViewer = true
+                },
+                onViewLocation = { message ->
+                    val id = "msg:${message.id}"
+                    // A geo-tagged message outside the mesh timeline (a channel, a geohash) is
+                    // not in the registry-backed list, so the map is handed it directly.
+                    mapAdHocEntity = if (mapEntities.any { it.id == id }) null else {
+                        com.bitchat.android.ui.map.buildMapEntities(emptyList(), listOf(message), nickname)
+                            .firstOrNull()
+                    }
+                    mapFocusId = id
+                    showMapSheet = true
                 }
             )
 
@@ -542,6 +588,45 @@ if (isMeshTimeline) {
                 }
             }
         }
+
+        // The map: full screen, over the conversation, in the same window so it can be
+        // entered and left without a dialog's transition. Always in the dark visual language.
+        AnimatedVisibility(
+            visible = showMapSheet,
+            enter = fadeIn(tween(BitchatMotion.EMPHASIZED_MS)) +
+                scaleIn(tween(BitchatMotion.EMPHASIZED_MS), initialScale = 0.98f),
+            exit = fadeOut(tween(BitchatMotion.STANDARD_MS)),
+            modifier = Modifier
+                .fillMaxSize()
+                .zIndex(10f)
+        ) {
+            val adHoc = mapAdHocEntity
+            val entitiesForMap = remember(mapEntities, adHoc) {
+                if (adHoc == null || mapEntities.any { it.id == adHoc.id }) mapEntities else mapEntities + adHoc
+            }
+            com.bitchat.android.ui.map.MapThemeScope {
+                com.bitchat.android.ui.map.EmergencyMapScreen(
+                    entities = entitiesForMap,
+                    localRole = localRole,
+                    meshPeerCount = connectedPeers.size,
+                    initialFocusId = mapFocusId,
+                    guidanceTargetId = mapGuidanceId,
+                    onGuidanceTargetChange = { mapGuidanceId = it },
+                    onOpenInChat = { showMapSheet = false },
+                    onMessagePeer = { entity ->
+                        showMapSheet = false
+                        entity.peerID?.let { peerID ->
+                            if (peerID.startsWith("nostr:")) {
+                                viewModel.startGeohashDMByShortId(peerID.removePrefix("nostr:"))
+                            } else {
+                                viewModel.showPrivateChatSheet(peerID)
+                            }
+                        }
+                    },
+                    onDismiss = { showMapSheet = false }
+                )
+            }
+        }
     }
 
     // Full-screen image viewer - separate from other sheets to allow image browsing without navigation
@@ -608,31 +693,12 @@ if (isMeshTimeline) {
         },
         onOpenMap = {
             showShelterSheet = false
+            mapFocusId = null
+            mapAdHocEntity = null
             showMapSheet = true
         },
         onDismiss = { showShelterSheet = false }
     )
-    if (showMapSheet) {
-        val shelters = viewModel.shelters.value
-        val publicMsgs = viewModel.publicMessages.value
-        val incidents = publicMsgs.mapNotNull { msg ->
-            val geo = com.bitchat.android.ui.map.parseGeoTag(msg.content) ?: return@mapNotNull null
-            com.bitchat.android.ui.map.IncidentMarker(
-                id = msg.id,
-                lat = geo.first,
-                lon = geo.second,
-                role = msg.category,
-                label = "${msg.sender}: ${msg.content.take(40)}"
-            )
-        }
-        com.bitchat.android.ui.map.OfflineMapSheet(
-            shelters = shelters,
-            incidents = incidents,
-            ownPosition = null,
-            onDismiss = { showMapSheet = false }
-        )
-    }
-
     legacyPrivateMediaConsent?.let { request ->
         AlertDialog(
             onDismissRequest = { viewModel.cancelLegacyPrivateMedia(request.requestId) },
